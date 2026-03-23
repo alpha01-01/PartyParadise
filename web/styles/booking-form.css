@@ -1,0 +1,359 @@
+/*
+ * booking-form.css
+ * Styles for the new booking multi-step form.
+ * Add to (dashboard)/layout.tsx alongside dashboard.css
+ */
+
+/* ── Step indicator ── */
+.pp-step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 28px;
+}
+
+.pp-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 8px 12px;
+  border-radius: var(--pp-radius-sm);
+  font-size: 12px;
+  color: var(--pp-text-3);
+  cursor: default;
+  transition: all var(--pp-transition);
+  background: none;
+  border: 1px solid transparent;
+}
+
+.pp-step--active {
+  color: var(--pp-gold);
+  background: var(--pp-gold-glow, rgba(245,200,66,0.12));
+  border-color: rgba(245, 200, 66, 0.15);
+}
+
+.pp-step--done {
+  color: var(--pp-green);
+  cursor: pointer;
+}
+
+.pp-step--done:hover {
+  background: rgba(76, 175, 125, 0.08);
+}
+
+.pp-step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--pp-text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: all var(--pp-transition);
+}
+
+.pp-step--active .pp-step-num {
+  border-color: var(--pp-gold);
+  color: var(--pp-gold);
+  background: rgba(245, 200, 66, 0.1);
+}
+
+.pp-step--done .pp-step-num {
+  border-color: var(--pp-green);
+  background: var(--pp-green);
+  color: white;
+}
+
+.pp-step-connector {
+  width: 24px;
+  height: 1px;
+  background: var(--pp-border2);
+  flex-shrink: 0;
+}
+
+/* ── Form layout ── */
+.pp-booking-form-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 18px;
+  align-items: start;
+}
+
+/* ── Form section ── */
+.pp-form-section {
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-radius);
+  overflow: hidden;
+}
+
+.pp-form-section-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--pp-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pp-form-section-title {
+  font-family: var(--pp-font-display);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--pp-text);
+  letter-spacing: -0.01em;
+}
+
+.pp-form-section-body {
+  padding: 18px;
+}
+
+/* ── Field ── */
+.pp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pp-field-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--pp-text-2);
+  letter-spacing: 0.01em;
+}
+
+.pp-required {
+  color: var(--pp-red);
+  margin-left: 2px;
+}
+
+.pp-field-error {
+  font-size: 11px;
+  color: var(--pp-red);
+  margin-top: 2px;
+}
+
+/* ── Grid helpers ── */
+.pp-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.pp-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+/* ── Service type pills ── */
+.pp-svc-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pp-svc-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 100px;
+  font-size: 12.5px;
+  border: 1.5px solid var(--pp-border2);
+  color: var(--pp-text-2);
+  cursor: pointer;
+  transition: all var(--pp-transition);
+  background: var(--pp-surface2);
+}
+
+.pp-svc-pill:hover {
+  border-color: var(--pp-border2);
+  color: var(--pp-text);
+}
+
+.pp-svc-pill--decor {
+  border-color: #7aa3e0;
+  color: #7aa3e0;
+  background: rgba(122, 163, 224, 0.1);
+}
+
+.pp-svc-pill--360 {
+  border-color: var(--pp-gold);
+  color: var(--pp-gold);
+  background: rgba(245, 200, 66, 0.08);
+}
+
+.pp-svc-pill--rental {
+  border-color: var(--pp-green);
+  color: var(--pp-green);
+  background: rgba(76, 175, 125, 0.08);
+}
+
+.pp-svc-pill--combo {
+  border-color: var(--pp-red);
+  color: var(--pp-red);
+  background: rgba(224, 90, 74, 0.08);
+}
+
+/* ── Client dropdown ── */
+.pp-client-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  z-index: 20;
+  background: var(--pp-surface2);
+  border: 1px solid var(--pp-border2);
+  border-radius: var(--pp-radius-sm);
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.pp-client-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: background var(--pp-transition);
+}
+
+.pp-client-result:hover { background: var(--pp-surface3, #232019); }
+
+.pp-client-result-name { font-size: 13px; color: var(--pp-text); font-weight: 500; }
+.pp-client-result-meta { font-size: 11px; color: var(--pp-text-3); }
+
+.pp-client-result-new {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  color: var(--pp-gold);
+  font-size: 12.5px;
+  border-top: 1px solid var(--pp-border);
+  transition: background var(--pp-transition);
+  text-decoration: none;
+}
+
+.pp-client-result-new:hover { background: var(--pp-surface3, #232019); }
+
+/* ── Selected client card ── */
+.pp-selected-client {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: var(--pp-surface2);
+  border: 1px solid rgba(245, 200, 66, 0.15);
+  border-radius: var(--pp-radius-sm);
+  margin-top: 4px;
+}
+
+.pp-client-av {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--pp-surface3, #232019);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8.5px;
+  font-weight: 600;
+  color: var(--pp-text-2);
+  flex-shrink: 0;
+  border: 1px solid var(--pp-border2);
+}
+
+.pp-client-av--lg {
+  width: 34px;
+  height: 34px;
+  font-size: 11px;
+  color: var(--pp-gold);
+  border-color: rgba(245, 200, 66, 0.2);
+}
+
+/* ── Service line items ── */
+.pp-service-line {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--pp-surface2);
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-radius-sm);
+  padding: 12px;
+}
+
+.pp-add-service-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border-radius: var(--pp-radius-sm);
+  color: var(--pp-text-3);
+  font-size: 12.5px;
+  border: 1px dashed var(--pp-border2);
+  width: 100%;
+  transition: all var(--pp-transition);
+  background: none;
+  cursor: pointer;
+  justify-content: center;
+}
+
+.pp-add-service-btn:hover {
+  color: var(--pp-gold);
+  border-color: rgba(245, 200, 66, 0.3);
+  background: rgba(245, 200, 66, 0.03);
+}
+
+/* ── Booking summary sidebar ── */
+.pp-booking-summary {
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-radius);
+  overflow: hidden;
+  position: sticky;
+  top: 22px;
+}
+
+/* ── Row button danger variant ── */
+.pp-row-btn--danger:hover {
+  background: rgba(224, 90, 74, 0.1);
+  color: var(--pp-red);
+}
+
+/* ── Submit spinner ── */
+.pp-btn--loading {
+  position: relative;
+  color: transparent !important;
+}
+
+@keyframes pp-btn-spin { to { transform: rotate(360deg); } }
+
+.pp-spinner {
+  position: absolute;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(14, 13, 11, 0.25);
+  border-top-color: #0e0d0b;
+  animation: pp-btn-spin 0.7s linear infinite;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .pp-booking-form-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .pp-booking-summary {
+    position: static;
+  }
+}
+
+@media (max-width: 600px) {
+  .pp-row-2 { grid-template-columns: 1fr; }
+  .pp-step-indicator { overflow-x: auto; }
+}
+</style>

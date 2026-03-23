@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+venv/
+env/
+.next/
+out/
+npm-debug.log*
+
+# Build outputs
+dist/
+build/
+*.o
+*.a
+*.so
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.user
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.*.local
+api/.env
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# WeasyPrint / compiled files
+*.pyc
+*.pyd

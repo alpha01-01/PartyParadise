@@ -1,0 +1,78 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────
+# PartyParadise — Local Development Stack
+#
+# Start everything:   docker compose up
+# Database only:      docker compose up db
+# Rebuild API:        docker compose up --build api
+#
+# First time setup:
+#   1. cp .env.example .env  (fill in your values)
+#   2. docker compose up db -d
+#   3. cd apps/api && alembic upgrade head
+#   4. docker compose up
+# ─────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL ─────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: partyparadise
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI backend ────────────────────────────────────────
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:password@db:5432/partyparadise
+      ENV: development
+    env_file:
+      - .env
+    volumes:
+      - ./api:/app          # hot reload in development
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Next.js frontend ───────────────────────────────────────
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    env_file:
+      - .env
+    volumes:
+      - ./web:/app          # hot reload in development
+      - /app/node_modules   # keep container node_modules
+      - /app/.next          # keep .next build cache
+    depends_on:
+      - api
+    command: npm run dev
+
+volumes:
+  pgdata:

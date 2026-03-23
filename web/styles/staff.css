@@ -1,0 +1,207 @@
+/*
+ * staff.css
+ * Styles for the staff list, schedule grid, and leave requests.
+ */
+
+/* ── Page-level tabs (Staff / Schedule / Leave) ── */
+.pp-page-tabs {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--pp-border);
+  background: var(--pp-surface);
+  padding: 0 22px;
+  flex-shrink: 0;
+}
+
+.pp-page-tab {
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--pp-text-3);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all var(--pp-transition);
+  margin-bottom: -1px;
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  white-space: nowrap;
+}
+
+.pp-page-tab:hover { color: var(--pp-text-2); }
+
+.pp-page-tab--active {
+  color: var(--pp-gold);
+  border-bottom-color: var(--pp-gold);
+  font-weight: 500;
+}
+
+/* ── Staff cards grid ── */
+.pp-staff-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pp-staff-card {
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-radius);
+  padding: 16px;
+  cursor: pointer;
+  transition: all var(--pp-transition);
+}
+
+.pp-staff-card:hover {
+  border-color: var(--pp-border2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+}
+
+.pp-staff-card--selected {
+  border-color: rgba(245, 200, 66, 0.3);
+  background: rgba(245, 200, 66, 0.03);
+}
+
+.pp-staff-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.pp-staff-card-name {
+  font-family: var(--pp-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--pp-text);
+  letter-spacing: -0.01em;
+  margin-top: 4px;
+  margin-bottom: 3px;
+}
+
+.pp-staff-card-role {
+  font-size: 12px;
+  color: var(--pp-text-3);
+  margin-bottom: 8px;
+}
+
+.pp-staff-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid var(--pp-border);
+}
+
+/* ── Schedule grid ── */
+.pp-schedule-grid {
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-radius);
+  overflow: hidden;
+}
+
+.pp-schedule-header {
+  display: grid;
+  border-bottom: 1px solid var(--pp-border);
+}
+
+.pp-schedule-day-header {
+  padding: 10px 12px;
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--pp-text-3);
+  letter-spacing: 0.04em;
+  border-right: 1px solid var(--pp-border);
+}
+
+.pp-schedule-day-header:last-child { border-right: none; }
+.pp-schedule-day-header--today {
+  background: var(--pp-gold-glow, rgba(245,200,66,0.08));
+  color: var(--pp-gold);
+}
+
+.pp-schedule-row {
+  display: grid;
+  border-bottom: 1px solid var(--pp-border);
+}
+
+.pp-schedule-row:last-child { border-bottom: none; }
+
+.pp-schedule-staff-cell {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-right: 1px solid var(--pp-border);
+}
+
+.pp-schedule-day-cell {
+  padding: 4px;
+  min-height: 52px;
+  position: relative;
+  cursor: pointer;
+  transition: background var(--pp-transition);
+  border-right: 1px solid var(--pp-border);
+}
+
+.pp-schedule-day-cell:last-child { border-right: none; }
+.pp-schedule-day-cell:hover { background: var(--pp-surface2); }
+.pp-schedule-day-cell--today { background: rgba(245, 200, 66, 0.03); }
+
+/* ── Shift pills ── */
+.pp-shift-pill {
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+  cursor: pointer;
+  transition: opacity var(--pp-transition);
+}
+
+.pp-shift-pill:hover { opacity: 0.8; }
+
+.pp-shift-pill--event {
+  background: rgba(245, 200, 66, 0.15);
+  border: 1px solid rgba(245, 200, 66, 0.25);
+  color: var(--pp-gold);
+}
+
+.pp-shift-pill--prep {
+  background: rgba(122, 163, 224, 0.15);
+  border: 1px solid rgba(122, 163, 224, 0.25);
+  color: #7aa3e0;
+}
+
+.pp-shift-pill--training {
+  background: rgba(160, 130, 250, 0.15);
+  border: 1px solid rgba(160, 130, 250, 0.25);
+  color: #a78bfa;
+}
+
+.pp-shift-pill--admin {
+  background: var(--pp-surface3, #232019);
+  border: 1px solid var(--pp-border);
+  color: var(--pp-text-3);
+}
+
+/* ── Responsive ── */
+@media (max-width: 1100px) {
+  .pp-staff-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+}
+
+@media (max-width: 900px) {
+  .pp-staff-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 600px) {
+  .pp-staff-grid { grid-template-columns: 1fr; }
+  .pp-page-tabs { overflow-x: auto; }
+}

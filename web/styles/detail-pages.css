@@ -1,0 +1,275 @@
+/*
+ * detail-pages.css
+ * Styles for booking detail page and client detail page.
+ * Add to (dashboard)/layout.tsx alongside other CSS imports.
+ */
+
+/* ══════════════════════════════════════════════════════════════
+   BOOKING DETAIL
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Header card ── */
+.pp-bk-header {
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-radius);
+  padding: 20px 22px;
+  margin-bottom: 14px;
+}
+
+.pp-bk-ref {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pp-gold);
+  margin-bottom: 4px;
+}
+
+.pp-bk-title {
+  font-family: var(--pp-font-display);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--pp-text);
+  letter-spacing: -0.03em;
+  margin-bottom: 8px;
+}
+
+.pp-bk-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--pp-text-3);
+  margin-bottom: 10px;
+}
+
+.pp-bk-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pp-bk-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+/* ── Status timeline ── */
+.pp-bk-timeline {
+  padding: 16px 20px;
+  margin-bottom: 14px;
+}
+
+.pp-bk-steps {
+  display: flex;
+  align-items: flex-start;
+}
+
+.pp-step-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  z-index: 1;
+  transition: all var(--pp-transition);
+}
+
+.pp-step-dot--done {
+  background: var(--pp-green);
+  border: 2px solid var(--pp-green);
+  color: white;
+}
+
+.pp-step-dot--active {
+  background: var(--pp-gold);
+  border: 2px solid var(--pp-gold);
+  color: #0e0d0b;
+  box-shadow: 0 0 12px rgba(245, 200, 66, 0.35);
+}
+
+.pp-step-dot--future {
+  background: var(--pp-surface2);
+  border: 2px solid var(--pp-border2);
+  color: var(--pp-text-3);
+}
+
+.pp-step-label {
+  font-size: 10px;
+  color: var(--pp-text-3);
+  margin-top: 5px;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.pp-step-label--active { color: var(--pp-gold); font-weight: 500; }
+.pp-step-label--done   { color: var(--pp-green); }
+
+.pp-step-connector {
+  height: 2px;
+  flex: 1;
+  margin: 0 -2px;
+  position: relative;
+  top: 13px;
+  background: var(--pp-border2);
+  transition: background var(--pp-transition);
+}
+
+.pp-step-connector--done { background: var(--pp-green); }
+
+/* ── Detail layout ── */
+.pp-booking-detail-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 14px;
+  align-items: start;
+}
+
+/* ── Chip tags (staff/equipment) ── */
+.pp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--pp-surface2);
+  border: 1px solid var(--pp-border2);
+  border-radius: 100px;
+  font-size: 11.5px;
+  color: var(--pp-text-2);
+}
+
+.pp-chip-av {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--pp-surface3, #232019);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7px;
+  font-weight: 600;
+  color: var(--pp-text-2);
+}
+
+.pp-chip-add {
+  border-style: dashed;
+  color: var(--pp-text-3);
+  cursor: pointer;
+  transition: all var(--pp-transition);
+}
+
+.pp-chip-add:hover {
+  border-color: rgba(245, 200, 66, 0.3);
+  color: var(--pp-gold);
+  background: rgba(245, 200, 66, 0.04);
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   CLIENT DETAIL
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Hero card ── */
+.pp-client-hero {
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-radius);
+  padding: 22px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.pp-hero-av {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  flex-shrink: 0;
+  border: 2px solid;
+}
+
+.pp-hero-name {
+  font-family: var(--pp-font-display);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--pp-text);
+  letter-spacing: -0.03em;
+  margin-bottom: 4px;
+}
+
+.pp-hero-meta {
+  font-size: 12px;
+  color: var(--pp-text-3);
+  margin-bottom: 10px;
+}
+
+.pp-hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-left: auto;
+  align-self: center;
+  min-width: 220px;
+}
+
+/* ── Detail layout ── */
+.pp-client-detail-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 14px;
+  align-items: start;
+}
+
+/* ── Empty state ── */
+.pp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  text-align: center;
+}
+
+.pp-empty-icon { font-size: 36px; margin-bottom: 12px; }
+
+.pp-empty-title {
+  font-family: var(--pp-font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--pp-text);
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+.pp-empty-sub { font-size: 13px; color: var(--pp-text-2); max-width: 320px; }
+
+
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1000px) {
+  .pp-booking-detail-layout { grid-template-columns: 1fr; }
+  .pp-client-detail-layout  { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 700px) {
+  .pp-bk-header { padding: 16px; }
+  .pp-hero-stats { min-width: unset; grid-template-columns: repeat(3, 1fr); }
+  .pp-client-hero { flex-direction: column; }
+  .pp-hero-stats { margin-left: 0; width: 100%; }
+}
