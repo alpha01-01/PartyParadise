@@ -56,6 +56,7 @@ export default function ReportsPage() {
         </div>
         <div className="pp-ops-hero-actions">
           <select
+            aria-label="Year"
             className="pp-period-select"
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}

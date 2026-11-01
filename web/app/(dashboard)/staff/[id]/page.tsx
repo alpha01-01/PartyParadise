@@ -63,7 +63,7 @@ export default function StaffProfilePage() {
             <SummaryCard label="Approved Leave" value={String(approvedLeaveDays)} detail="Days approved on record" tone="gold" />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1fr) minmax(320px, 1.2fr)", gap: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 18 }}>
             <div className="pp-card">
               <div className="pp-section-title" style={{ marginBottom: 12 }}>Profile Details</div>
               <div style={{ display: "grid", gap: 10, fontSize: 13 }}>

@@ -142,9 +142,9 @@ export default function ShopPage() {
             <div className="pp-filter-bar" style={{ marginBottom: 0 }}>
               <div className="pp-search-wrap">
                 <SearchIcon />
-                <input className="pp-search-input" placeholder="Search party items or SKU" value={search} onChange={(event) => setSearch(event.target.value)} />
+                <input className="pp-search-input" aria-label="Search" placeholder="Search party items or SKU" value={search} onChange={(event) => setSearch(event.target.value)} />
               </div>
-              <select className="pp-period-select" value={category} onChange={(event) => setCategory(event.target.value)}>
+              <select className="pp-period-select" aria-label="Category" value={category} onChange={(event) => setCategory(event.target.value)}>
                 <option value="all">All categories</option>
                 {categories.map((value) => <option key={value} value={value}>{value}</option>)}
               </select>
@@ -212,14 +212,14 @@ export default function ShopPage() {
           </div>
 
           <div className="pp-row-2">
-            <div className="pp-field"><label className="pp-field-label">Customer name</label><input className="pp-input" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Optional walk-in customer name" /></div>
-            <div className="pp-field"><label className="pp-field-label">Customer phone</label><input className="pp-input" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Optional contact" /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="customer-name-1">Customer name</label><input id="customer-name-1" className="pp-input" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Optional walk-in customer name" /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="customer-phone-1">Customer phone</label><input id="customer-phone-1" className="pp-input" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Optional contact" /></div>
           </div>
           <div className="pp-row-2">
-            <div className="pp-field"><label className="pp-field-label">Payment method</label><select className="pp-input" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>{PAYMENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
-            <div className="pp-field"><label className="pp-field-label">Sale date</label><input className="pp-input" type="date" value={saleDate} onChange={(event) => setSaleDate(event.target.value)} /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="payment-method-1">Payment method</label><select id="payment-method-1" className="pp-input" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>{PAYMENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="sale-date-1">Sale date</label><input id="sale-date-1" className="pp-input" type="date" value={saleDate} onChange={(event) => setSaleDate(event.target.value)} /></div>
           </div>
-          <div className="pp-field"><label className="pp-field-label">Notes</label><textarea className="pp-input" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} style={{ resize: "none" }} placeholder="Optional context for this counter sale" /></div>
+          <div className="pp-field"><label className="pp-field-label" htmlFor="notes-1">Notes</label><textarea id="notes-1" className="pp-input" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} style={{ resize: "none" }} placeholder="Optional context for this counter sale" /></div>
 
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--pp-border)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <div>

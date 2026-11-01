@@ -135,7 +135,7 @@ export default function ClientsPage() {
       <div className="pp-filter-bar">
         <div className="pp-search-wrap">
           <SearchIcon />
-          <input className="pp-search-input" placeholder="Search clients, source, or contact info" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <input className="pp-search-input" aria-label="Search" placeholder="Search clients, source, or contact info" value={search} onChange={(event) => setSearch(event.target.value)} />
         </div>
         <div className="pp-filter-tabs">
           {FILTER_TABS.map((tab) => (

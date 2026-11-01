@@ -100,11 +100,15 @@ export default function NewBookingPage() {
     if (s === 1) {
       if (!form.serviceType) errs.serviceType = "Please select a service type";
       if (!form.eventDate)   errs.eventDate   = "Event date is required";
+      else if (form.eventDate < new Date().toLocaleDateString("en-CA")) errs.eventDate = "Event date cannot be in the past";
+      if (form.guestCount && Number(form.guestCount) < 0) errs.guestCount = "Guest count cannot be negative";
+      if (form.startTime && form.startTime === form.endTime) errs.endTime = "End time must be different from start time";
       if (!form.venueName)   errs.venueName   = "Venue name is required";
     }
     if (s === 2) {
       const valid = form.services.filter((s) => s.service.trim() && parseFloat(s.price) > 0);
-      if (valid.length === 0) errs.services = "Add at least one service with a price";
+      if (form.services.some((s) => parseFloat(s.price) < 0)) errs.services = "Prices cannot be negative";
+      else if (valid.length === 0) errs.services = "Add at least one service with a price";
     }
     return errs;
   }
@@ -278,10 +282,12 @@ function ClientStep({
 }) {
   const [showResults, setShowResults] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const { clients } = useClients({
-    search: form.clientSearch,
-    page_size: 5,
-  });
+  const { clients, updateFilters } = useClients({ page_size: 5 });
+
+  useEffect(() => {
+    const timer = setTimeout(() => updateFilters({ search: form.clientSearch.trim() }), 250);
+    return () => clearTimeout(timer);
+  }, [form.clientSearch]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -304,11 +310,11 @@ function ClientStep({
       </div>
       <div className="pp-form-section-body">
         <div className="pp-field">
-          <label className="pp-field-label">
+          <label className="pp-field-label" htmlFor="search-existing-client-1">
             Search existing client <span className="pp-required">*</span>
           </label>
           <div ref={wrapRef} style={{ position: "relative" }}>
-            <input
+            <input id="search-existing-client-1"
               className={cn("pp-input", errors.client && "pp-input--error")}
               placeholder="Type a name, email, or phone..."
               value={form.clientSearch}
@@ -434,8 +440,8 @@ function EventStep({
         {/* Event type + guest count */}
         <div className="pp-row-2">
           <div className="pp-field">
-            <label className="pp-field-label">Event type</label>
-            <select
+            <label className="pp-field-label" htmlFor="event-type-1">Event type</label>
+            <select id="event-type-1"
               className="pp-input"
               value={form.eventType}
               onChange={(e) => onUpdate({ eventType: e.target.value })}
@@ -448,8 +454,8 @@ function EventStep({
             <div className="pp-field-hint">Optional but helpful for reporting.</div>
           </div>
           <div className="pp-field">
-            <label className="pp-field-label">Guest count</label>
-            <input
+            <label className="pp-field-label" htmlFor="guest-count-1">Guest count</label>
+            <input id="guest-count-1"
               className="pp-input"
               type="number"
               min="1"
@@ -457,6 +463,7 @@ function EventStep({
               value={form.guestCount}
               onChange={(e) => onUpdate({ guestCount: e.target.value })}
             />
+            {errors.guestCount && <span className="pp-field-error">{errors.guestCount}</span>}
             <div className="pp-field-hint">Estimate if unsure.</div>
           </div>
         </div>
@@ -464,10 +471,10 @@ function EventStep({
         {/* Date + time */}
         <div className="pp-row-2">
           <div className="pp-field">
-            <label className="pp-field-label">
+            <label className="pp-field-label" htmlFor="event-date-1">
               Event date <span className="pp-required">*</span>
             </label>
-            <input
+            <input id="event-date-1"
               className={cn("pp-input", errors.eventDate && "pp-input--error")}
               type="date"
               value={form.eventDate}
@@ -479,8 +486,8 @@ function EventStep({
           </div>
           <div className="pp-row-2" style={{ gap: 8 }}>
             <div className="pp-field">
-              <label className="pp-field-label">Start time</label>
-              <input
+              <label className="pp-field-label" htmlFor="start-time-1">Start time</label>
+              <input id="start-time-1"
                 className="pp-input"
                 type="time"
                 value={form.startTime}
@@ -488,23 +495,24 @@ function EventStep({
               />
             </div>
             <div className="pp-field">
-              <label className="pp-field-label">End time</label>
-              <input
+              <label className="pp-field-label" htmlFor="end-time-1">End time</label>
+              <input id="end-time-1"
                 className="pp-input"
                 type="time"
                 value={form.endTime}
                 onChange={(e) => onUpdate({ endTime: e.target.value })}
               />
+              {errors.endTime && <span className="pp-field-error">{errors.endTime}</span>}
             </div>
           </div>
         </div>
 
         {/* Venue */}
         <div className="pp-field">
-          <label className="pp-field-label">
+          <label className="pp-field-label" htmlFor="venue-name-1">
             Venue name <span className="pp-required">*</span>
           </label>
-          <input
+          <input id="venue-name-1"
             className={cn("pp-input", errors.venueName && "pp-input--error")}
             placeholder="e.g. Kempinski Hotel Gold Coast City"
             value={form.venueName}
@@ -514,8 +522,8 @@ function EventStep({
           <div className="pp-field-hint">Required. The main event location.</div>
         </div>
         <div className="pp-field">
-          <label className="pp-field-label">Venue address</label>
-          <input
+          <label className="pp-field-label" htmlFor="venue-address-1">Venue address</label>
+          <input id="venue-address-1"
             className="pp-input"
             placeholder="Full address including area"
             value={form.venueAddress}
@@ -525,8 +533,8 @@ function EventStep({
 
         {/* Special requests */}
         <div className="pp-field">
-          <label className="pp-field-label">Special requests</label>
-          <textarea
+          <label className="pp-field-label" htmlFor="special-requests-1">Special requests</label>
+          <textarea id="special-requests-1"
             className="pp-input"
             rows={3}
             placeholder="Color themes, special requirements, notes from the client..."
@@ -594,8 +602,8 @@ function ServicesStep({
           <div key={line.id} className="pp-service-line">
             <div style={{ flex: 1 }}>
               <div className="pp-field" style={{ marginBottom: 8 }}>
-                <label className="pp-field-label">Service name</label>
-                <input
+                <label className="pp-field-label" htmlFor={`service-name-${i}`}>Service name</label>
+                <input id={`service-name-${i}`}
                   className="pp-input"
                   placeholder="e.g. Balloon arch and backdrop setup"
                   value={line.service}
@@ -603,8 +611,8 @@ function ServicesStep({
                 />
               </div>
               <div className="pp-field">
-                <label className="pp-field-label">Notes (optional)</label>
-                <input
+                <label className="pp-field-label" htmlFor={`notes-optional-${i}`}>Notes (optional)</label>
+                <input id={`notes-optional-${i}`}
                   className="pp-input"
                   placeholder="Any details about this service"
                   value={line.description}
@@ -614,8 +622,8 @@ function ServicesStep({
             </div>
             <div style={{ width: 120 }}>
               <div className="pp-field" style={{ marginBottom: 8 }}>
-                <label className="pp-field-label">Price (GHS)</label>
-                <input
+                <label className="pp-field-label" htmlFor={`price-ghs-${i}`}>Price (GHS)</label>
+                <input id={`price-ghs-${i}`}
                   className="pp-input"
                   type="number"
                   min="0"
@@ -626,8 +634,8 @@ function ServicesStep({
                 />
               </div>
               <div className="pp-field">
-                <label className="pp-field-label">Pricing</label>
-                <select
+                <label className="pp-field-label" htmlFor={`pricing-${i}`}>Pricing</label>
+                <select id={`pricing-${i}`}
                   className="pp-input"
                   value={line.pricing_type}
                   onChange={(e) => updateLine(i, { pricing_type: e.target.value })}

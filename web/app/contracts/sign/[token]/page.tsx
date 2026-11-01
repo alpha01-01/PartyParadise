@@ -256,7 +256,7 @@ export default function ContractSignPage() {
               )}
             </div>
             <p style={{ fontSize: 12, color: "var(--pp-text-3)", marginTop: 18 }}>
-              A copy will be sent to your email · PartyParadise will be in touch to confirm your deposit.
+              PartyParadise will be in touch to confirm your deposit.
             </p>
           </div>
         </ContractCard>
@@ -272,7 +272,7 @@ export default function ContractSignPage() {
         <div className="pp-sign-banner-icon">✍</div>
         <div>
           <strong>Awaiting your signature</strong> &nbsp;·&nbsp;
-          This agreement is ready for review and signing. Expires in <strong>48 hours</strong>.
+          This agreement is ready for review and signing. The link expires <strong>7 days</strong> after it was sent.
         </div>
       </div>
 
@@ -305,10 +305,10 @@ export default function ContractSignPage() {
         <div className="pp-sign-panel-body">
           {sigMode === "type" ? (
             <>
-              <label className="pp-sign-field-label">
+              <label className="pp-sign-field-label" htmlFor="type-your-full-legal-nam-1">
                 Type your full legal name to sign
               </label>
-              <input
+              <input id="type-your-full-legal-nam-1"
                 className="pp-sig-input"
                 placeholder="Your full name"
                 value={typedSig}

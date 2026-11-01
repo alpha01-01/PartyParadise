@@ -595,19 +595,20 @@ import type {
   BookingProfitabilitySummary,
 } from "@/lib/types";
 
-export function useDashboard() {
+export function useDashboard(period = "this_month") {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    api.get<DashboardSummary>("/reports/dashboard")
+    setLoading(true);
+    api.get<DashboardSummary>(`/reports/dashboard?period=${period}`)
       .then(({ data: d }) => { if (!cancelled) setData(d); })
       .catch((err) => { if (!cancelled) setError(normaliseError(err).message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [period]);
 
   return { data, loading, error };
 }

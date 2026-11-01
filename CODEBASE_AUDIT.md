@@ -34,7 +34,7 @@ Counts below are the original findings. Current status is in each row.
 ### What is working
 
 - `tsc` is clean, and `next build` succeeds with 25 pages generated.
-- The API suite is 642 tests, all passing (see [Missing tests](#missing-tests)).
+- The API suite is 653 tests, all passing (see [Missing tests](#missing-tests)).
 - Migrations 001-009 upgrade and downgrade cleanly on a fresh database.
 - Passwords use bcrypt, queries go through the ORM (no SQL injection found), and money is stored as `Numeric(12,2)`.
 - Staff and client tokens are correctly kept apart: a client token is rejected on staff routes.
@@ -206,7 +206,7 @@ Testing used a temporary Postgres 18 instance on its own port, seeded through th
 
 ## Missing tests
 
-**Current state:** 642 tests in 15 files with `TEST_DATABASE_URL` set, all passing, with no expected failures left. TEST-01 to TEST-06 are in place; CI is written but has never run. **Only `test_webhooks.py` is committed.** `conftest.py`, `test_inventory_import.py`, `test_references.py` and `test_security.py` are untracked. No frontend tests, no end-to-end tests, no CI, no ESLint config.
+**Current state:** 653 tests in 16 files with `TEST_DATABASE_URL` set, all passing, with no expected failures left. TEST-01 to TEST-06 are in place; CI is written but has never run. **Only `test_webhooks.py` is committed.** `conftest.py`, `test_inventory_import.py`, `test_references.py` and `test_security.py` are untracked. No frontend tests, no end-to-end tests, no CI, no ESLint config.
 
 The webhook tests pass while the real flow is 100% broken, because a fake DB ignores `NOT NULL`, and the test signs its payload with Python instead of Node. **New integration tests must run against real Postgres.**
 
@@ -330,7 +330,7 @@ These were left on purpose because each is a feature or redesign, not a fix:
 - **Refunds (DB-14)**, editing or cancelling invoices, and a durable log of rejected Paystack events.
 - **Background jobs (PERF-04):** email and PDF work still runs inside the request.
 - **Client and booking search (PERF-07):** needs a `pg_trgm` index.
-- **Accessibility:** most of the 149 labels are not linked to their inputs, and native `alert`/`confirm` remain.
+- **Accessibility:** native `alert`/`confirm` remain.
 - **Structure:** service layer, splitting `hooks/index.ts`, and generated TypeScript types.
 - **Not run:** Docker images, CI, live Paystack, real email, PDFs on WeasyPrint 70.
 - **Your actions:** rotate the database password (SEC-11), decide on rewriting git history (decision 6), and untrack `web/tsconfig.tsbuildinfo` when committing.
@@ -414,7 +414,6 @@ These were left on purpose because each is a feature or redesign, not a fix:
 
 ### UI and accessibility
 
-- Only 8 uses of `aria-*`/`htmlFor` against 149 `<label>` and 171 form controls, so most labels are not linked to their inputs.
 - Icon buttons lack names (hamburger, portal password toggle), and the mobile overlay is a clickable `div`.
 - Styling is split between 2,000+ lines of global CSS and heavy inline styles. Portal layout uses a fixed two-column grid that will not fit phones.
 - Native `alert`/`confirm` are used rather than designed dialogs and toasts.
@@ -422,6 +421,49 @@ These were left on purpose because each is a feature or redesign, not a fix:
 
 ### Documentation
 
+
+---
+
+## UI test results
+
+Tested 2026-11-01 on a production build with a copy of dev data: 24 staff pages at 1280x800, the same pages at phone width except the two edit pages, popups at 1366x600, plus login, portal and signing pages. Native dropdown lists could not be captured, so their open state was checked from computed styles only.
+
+### Findings
+
+| ID | Severity | Problem | Location | Status |
+|---|---|---|---|---|
+| UI-01 | High | New Booking client search never filters. It always lists the first 5 clients, so any later client cannot be chosen. | `web/app/(dashboard)/bookings/new/page.tsx:281`; `useClients` keeps its first filters | **Fixed 2026-11-01** |
+| UI-02 | High | The client search dropdown is cut off after about one row, because `.pp-form-section` has `overflow: hidden`. | `bookings/new/page.tsx`; `.pp-client-dropdown` | **Fixed 2026-11-01** |
+| UI-03 | High | Popups cannot scroll. On a short screen the header and the bottom of the form run off the screen, and an error message makes this worse. | `.pp-modal` in `dashboard.css` | **Fixed 2026-11-01** |
+| UI-04 | High | "+ Add Service" on a booking has no click handler. | `bookings/[id]/page.tsx:326` | **Fixed 2026-11-01** |
+| UI-05 | High | The dashboard period dropdown changes nothing. | `(dashboard)/page.tsx:529` | **Fixed 2026-11-01** |
+| UI-06 | Medium | No dark `color-scheme` is set, so date, time and number controls keep dark icons on a dark background, and dropdown lists rely on browser defaults. | `dashboard.css`, `auth.css` | **Fixed 2026-11-01** |
+| UI-07 | Medium | Faint text: placeholders 2.3:1, and "Collapse", "+ Assign", "+ Allocate", "Log interaction" and inactive tabs about 2.5:1. | `--pp-text-3` uses | **Fixed 2026-11-01**: buttons 4.9:1, placeholders 3.8:1 |
+| UI-08 | Medium | New Booking accepts a past date, negative guests and equal times until the last step, then shows one raw message such as `guest_count: Input should be greater than or equal to 0`. A negative service price only says "Add at least one service with a price". | `bookings/new/page.tsx` | **Fixed 2026-11-01** |
+| UI-09 | Medium | Labels are not linked to inputs on Add and Edit Client, Add Inventory Item, Add Equipment, Create Contract and Shop, and search boxes and filter dropdowns have no label. Clicking a label does nothing, and screen readers get no name. | Listed pages | **Fixed 2026-11-01**: 137 labels linked. Receipt upload, service type tiles and the signature box use other controls |
+| UI-10 | Medium | Popups ignore Escape. Assign Staff and Allocate Equipment ignore clicks outside, while the others close on an outside click and lose what was typed. | `pp-modal-overlay` uses | **Fixed 2026-11-01**: Escape closes every popup, outside clicks no longer close them |
+| UI-11 | Medium | Sideways scrolling at phone width: Dashboard 77px, Reports 140px, staff profile 266px. Table row buttons are under 36px tall. | Listed pages | **Fixed 2026-11-01**: checked on Dashboard, Reports, Staff, Invoices and staff profile |
+| UI-12 | Low | Stock adjustment asks people to paste a booking ID. A booking picker is needed. | `inventory/page.tsx` | **Fixed 2026-11-01** |
+| UI-13 | Low | The signing page says "Expires in 48 hours", but links last 7 days. It also promises an emailed copy that is not implemented. | `contracts/sign/[token]/page.tsx` | **Fixed 2026-11-01**: text changed, not browser-checked |
+| UI-14 | Low | The portal password toggle shows a bare "○" with no name, and the portal setup password fields have no linked labels. | `portal/(auth)/login/page.tsx`; `(auth)/portal/setup/[token]/page.tsx` | **Fixed 2026-11-01** |
+| UI-15 | Low | Create Invoice lists every booking, including those already invoiced, and an invoice cannot be created without a booking. | `invoices/new/page.tsx` | **Fixed 2026-11-01** |
+
+### Added while fixing
+
+- `POST /bookings/{id}/services` for Add Service, and `uninvoiced` on the booking list.
+- A `period` option on `/reports/dashboard`.
+- A shared `ModalOverlay` component used by all 16 popups.
+- Create Invoice now has a manual form for invoices without a booking.
+
+Browser re-test covered UI-01 to UI-05, UI-06 computed styles, UI-07 to UI-12, UI-14 and UI-15, on a copy of dev data at 1280x800, 1366x500 and 390x800. Open dropdown lists still cannot be captured in a screenshot, so a person should open one to confirm.
+
+### Passed
+
+- All 8 list search boxes filter, and show an empty message when nothing matches.
+- Invoice filter tabs show the right rows.
+- Add Client, Inventory, Equipment, Contract, Staff and Expense forms show a clear message when submitted empty.
+- Required-field messages work on New Booking.
+- No page scrolls sideways at the document level, and popups fit at 1280x800.
 
 ---
 

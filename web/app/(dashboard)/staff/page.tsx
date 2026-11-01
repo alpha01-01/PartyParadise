@@ -18,6 +18,7 @@ import {
 import { normaliseError } from "@/lib/api";
 import { downloadCsv } from "@/lib/export";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { ModalOverlay } from "@/components/ModalOverlay";
 
 type EmploymentType = "full_time" | "part_time" | "contract";
 type Tab = "staff" | "schedule" | "leave";
@@ -346,7 +347,7 @@ function StaffTab({
           <div className="pp-search-wrap">
             <SearchIcon />
             <input
-              className="pp-search-input"
+              className="pp-search-input" aria-label="Search"
               placeholder="Search staff by name, role, email, or phone"
               value={search}
               onChange={(event) => onSearch(event.target.value)}
@@ -666,7 +667,7 @@ function AddStaffModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
 
   if (setupUrl) {
     return (
-      <div className="pp-modal-overlay">
+      <ModalOverlay onClose={onSaved}>
         <div className="pp-modal">
           <div className="pp-modal-header"><span className="pp-modal-title">Staff member added</span></div>
           <div className="pp-modal-body">
@@ -675,34 +676,34 @@ function AddStaffModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
           </div>
           <div className="pp-modal-footer"><button type="button" className="pp-btn pp-btn-primary" onClick={onSaved}>Done</button></div>
         </div>
-      </div>
+      </ModalOverlay>
     );
   }
 
   return (
-    <div className="pp-modal-overlay" onClick={onClose}>
-      <div className="pp-modal" onClick={(event) => event.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="pp-modal">
         <div className="pp-modal-header"><span className="pp-modal-title">Add Staff Member</span><button className="pp-dp-close" style={{ position: "static" }} onClick={onClose}><CloseIcon /></button></div>
         <form onSubmit={handleSave}>
           <div className="pp-modal-body">
             {error && <div className="pp-field-error">{error}</div>}
             <div className="pp-row-2">
-              <div className="pp-field"><label className="pp-field-label">First name <span className="pp-required">*</span></label><input className="pp-input" value={form.first_name} onChange={(event) => setForm((current) => ({ ...current, first_name: event.target.value }))} autoFocus /></div>
-              <div className="pp-field"><label className="pp-field-label">Last name <span className="pp-required">*</span></label><input className="pp-input" value={form.last_name} onChange={(event) => setForm((current) => ({ ...current, last_name: event.target.value }))} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="first-name-1">First name <span className="pp-required">*</span></label><input id="first-name-1" className="pp-input" value={form.first_name} onChange={(event) => setForm((current) => ({ ...current, first_name: event.target.value }))} autoFocus /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="last-name-1">Last name <span className="pp-required">*</span></label><input id="last-name-1" className="pp-input" value={form.last_name} onChange={(event) => setForm((current) => ({ ...current, last_name: event.target.value }))} /></div>
             </div>
-            <div className="pp-field"><label className="pp-field-label">Email <span className="pp-required">*</span></label><input className="pp-input" type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} /></div>
-            <div className="pp-field"><label className="pp-field-label">Role <span className="pp-required">*</span></label><input className="pp-input" value={form.role_title} onChange={(event) => setForm((current) => ({ ...current, role_title: event.target.value }))} /></div>
-            <div className="pp-field"><label className="pp-field-label">Employment type</label><select className="pp-input" value={form.employment_type} onChange={(event) => setForm((current) => ({ ...current, employment_type: event.target.value }))}><option value="full_time">Full-time</option><option value="part_time">Part-time</option><option value="contract">Contract</option></select></div>
-            <div className="pp-field"><label className="pp-field-label">Phone</label><input className="pp-input" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="email-1">Email <span className="pp-required">*</span></label><input id="email-1" className="pp-input" type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="role-1">Role <span className="pp-required">*</span></label><input id="role-1" className="pp-input" value={form.role_title} onChange={(event) => setForm((current) => ({ ...current, role_title: event.target.value }))} /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="employment-type-1">Employment type</label><select id="employment-type-1" className="pp-input" value={form.employment_type} onChange={(event) => setForm((current) => ({ ...current, employment_type: event.target.value }))}><option value="full_time">Full-time</option><option value="part_time">Part-time</option><option value="contract">Contract</option></select></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="phone-1">Phone</label><input id="phone-1" className="pp-input" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></div>
             <div className="pp-row-2">
-              <div className="pp-field"><label className="pp-field-label">Salary (GHS/mo)</label><input className="pp-input" type="number" value={form.base_salary} onChange={(event) => setForm((current) => ({ ...current, base_salary: event.target.value }))} /></div>
-              <div className="pp-field"><label className="pp-field-label">Daily rate (GHS)</label><input className="pp-input" type="number" value={form.daily_rate} onChange={(event) => setForm((current) => ({ ...current, daily_rate: event.target.value }))} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="salary-ghs-mo-1">Salary (GHS/mo)</label><input id="salary-ghs-mo-1" className="pp-input" type="number" value={form.base_salary} onChange={(event) => setForm((current) => ({ ...current, base_salary: event.target.value }))} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="daily-rate-ghs-1">Daily rate (GHS)</label><input id="daily-rate-ghs-1" className="pp-input" type="number" value={form.daily_rate} onChange={(event) => setForm((current) => ({ ...current, daily_rate: event.target.value }))} /></div>
             </div>
           </div>
           <div className="pp-modal-footer"><button type="button" className="pp-btn pp-btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button><button type="submit" className={cn("pp-btn pp-btn-primary", saving && "pp-btn--loading")} style={{ flex: 2, justifyContent: "center" }} disabled={saving}><span>{saving ? "Adding..." : "Add Staff Member"}</span></button></div>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
 
@@ -754,31 +755,31 @@ function EditStaffModal({
   }
 
   return (
-    <div className="pp-modal-overlay" onClick={onClose}>
-      <div className="pp-modal" onClick={(event) => event.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="pp-modal">
         <div className="pp-modal-header"><span className="pp-modal-title">Edit Staff Profile</span><button className="pp-dp-close" style={{ position: "static" }} onClick={onClose}><CloseIcon /></button></div>
         <form onSubmit={handleSave}>
           <div className="pp-modal-body">
             {error && <div className="pp-field-error">{error}</div>}
-            <div className="pp-field"><label className="pp-field-label">Role <span className="pp-required">*</span></label><input className="pp-input" value={form.role_title} onChange={(event) => setForm((current) => ({ ...current, role_title: event.target.value }))} autoFocus /></div>
-            <div className="pp-field"><label className="pp-field-label">Employment type</label><select className="pp-input" value={form.employment_type} onChange={(event) => setForm((current) => ({ ...current, employment_type: event.target.value as EmploymentType }))}><option value="full_time">Full-time</option><option value="part_time">Part-time</option><option value="contract">Contract</option></select></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="role-2">Role <span className="pp-required">*</span></label><input id="role-2" className="pp-input" value={form.role_title} onChange={(event) => setForm((current) => ({ ...current, role_title: event.target.value }))} autoFocus /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="employment-type-2">Employment type</label><select id="employment-type-2" className="pp-input" value={form.employment_type} onChange={(event) => setForm((current) => ({ ...current, employment_type: event.target.value as EmploymentType }))}><option value="full_time">Full-time</option><option value="part_time">Part-time</option><option value="contract">Contract</option></select></div>
             <div className="pp-row-2">
-              <div className="pp-field"><label className="pp-field-label">Phone</label><input className="pp-input" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></div>
-              <div className="pp-field"><label className="pp-field-label">Status</label><select className="pp-input" value={form.is_active ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.value === "active" }))}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="phone-2">Phone</label><input id="phone-2" className="pp-input" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="status-1">Status</label><select id="status-1" className="pp-input" value={form.is_active ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.value === "active" }))}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
             </div>
             <div className="pp-row-2">
-              <div className="pp-field"><label className="pp-field-label">Emergency contact</label><input className="pp-input" value={form.emergency_contact} onChange={(event) => setForm((current) => ({ ...current, emergency_contact: event.target.value }))} /></div>
-              <div className="pp-field"><label className="pp-field-label">Emergency phone</label><input className="pp-input" value={form.emergency_phone} onChange={(event) => setForm((current) => ({ ...current, emergency_phone: event.target.value }))} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="emergency-contact-1">Emergency contact</label><input id="emergency-contact-1" className="pp-input" value={form.emergency_contact} onChange={(event) => setForm((current) => ({ ...current, emergency_contact: event.target.value }))} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="emergency-phone-1">Emergency phone</label><input id="emergency-phone-1" className="pp-input" value={form.emergency_phone} onChange={(event) => setForm((current) => ({ ...current, emergency_phone: event.target.value }))} /></div>
             </div>
             <div className="pp-row-2">
-              <div className="pp-field"><label className="pp-field-label">Salary (GHS/mo)</label><input className="pp-input" type="number" value={form.base_salary} onChange={(event) => setForm((current) => ({ ...current, base_salary: event.target.value }))} /></div>
-              <div className="pp-field"><label className="pp-field-label">Daily rate (GHS)</label><input className="pp-input" type="number" value={form.daily_rate} onChange={(event) => setForm((current) => ({ ...current, daily_rate: event.target.value }))} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="salary-ghs-mo-2">Salary (GHS/mo)</label><input id="salary-ghs-mo-2" className="pp-input" type="number" value={form.base_salary} onChange={(event) => setForm((current) => ({ ...current, base_salary: event.target.value }))} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="daily-rate-ghs-2">Daily rate (GHS)</label><input id="daily-rate-ghs-2" className="pp-input" type="number" value={form.daily_rate} onChange={(event) => setForm((current) => ({ ...current, daily_rate: event.target.value }))} /></div>
             </div>
           </div>
           <div className="pp-modal-footer"><button type="button" className="pp-btn pp-btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button><button type="submit" className={cn("pp-btn pp-btn-primary", saving && "pp-btn--loading")} style={{ flex: 2, justifyContent: "center" }} disabled={saving}><span>{saving ? "Saving..." : "Save Changes"}</span></button></div>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
 
@@ -808,26 +809,26 @@ function AddShiftModal({ staff, initialStaffId, onClose, onSaved }: { staff: Sta
   }
 
   return (
-    <div className="pp-modal-overlay" onClick={onClose}>
-      <div className="pp-modal" onClick={(event) => event.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="pp-modal">
         <div className="pp-modal-header"><span className="pp-modal-title">Assign Shift</span><button className="pp-dp-close" style={{ position: "static" }} onClick={onClose}><CloseIcon /></button></div>
         <form onSubmit={handleSave}>
           <div className="pp-modal-body">
             {error && <div className="pp-field-error">{error}</div>}
-            <div className="pp-field"><label className="pp-field-label">Staff member <span className="pp-required">*</span></label><select className="pp-input" value={form.staff_id} onChange={(event) => setForm((current) => ({ ...current, staff_id: event.target.value }))}>{staff.map((member) => <option key={member.id} value={member.id}>{member.full_name}</option>)}</select></div>
-            <div className="pp-field"><label className="pp-field-label">Shift type</label><select className="pp-input" value={form.type} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value }))}><option value="event">Event</option><option value="prep">Prep / setup</option><option value="training">Training</option><option value="admin">Admin</option></select></div>
-            <div className="pp-field"><label className="pp-field-label">Date <span className="pp-required">*</span></label><input className="pp-input" type="date" value={form.shift_date} onChange={(event) => setForm((current) => ({ ...current, shift_date: event.target.value }))} /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="staff-member-1">Staff member <span className="pp-required">*</span></label><select id="staff-member-1" className="pp-input" value={form.staff_id} onChange={(event) => setForm((current) => ({ ...current, staff_id: event.target.value }))}>{staff.map((member) => <option key={member.id} value={member.id}>{member.full_name}</option>)}</select></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="shift-type-1">Shift type</label><select id="shift-type-1" className="pp-input" value={form.type} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value }))}><option value="event">Event</option><option value="prep">Prep / setup</option><option value="training">Training</option><option value="admin">Admin</option></select></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="date-1">Date <span className="pp-required">*</span></label><input id="date-1" className="pp-input" type="date" value={form.shift_date} onChange={(event) => setForm((current) => ({ ...current, shift_date: event.target.value }))} /></div>
             <div className="pp-row-2">
-              <div className="pp-field"><label className="pp-field-label">Start time</label><input className="pp-input" type="time" value={form.start_time} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} /></div>
-              <div className="pp-field"><label className="pp-field-label">End time</label><input className="pp-input" type="time" value={form.end_time} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="start-time-1">Start time</label><input id="start-time-1" className="pp-input" type="time" value={form.start_time} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="end-time-1">End time</label><input id="end-time-1" className="pp-input" type="time" value={form.end_time} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} /></div>
             </div>
-            <div className="pp-field"><label className="pp-field-label">Booking ID</label><input className="pp-input" placeholder="Optional link to a booking record" value={form.booking_id} onChange={(event) => setForm((current) => ({ ...current, booking_id: event.target.value }))} /></div>
-            <div className="pp-field"><label className="pp-field-label">Location</label><input className="pp-input" value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="booking-id-1">Booking ID</label><input id="booking-id-1" className="pp-input" placeholder="Optional link to a booking record" value={form.booking_id} onChange={(event) => setForm((current) => ({ ...current, booking_id: event.target.value }))} /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="location-1">Location</label><input id="location-1" className="pp-input" value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} /></div>
           </div>
           <div className="pp-modal-footer"><button type="button" className="pp-btn pp-btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button><button type="submit" className={cn("pp-btn pp-btn-primary", saving && "pp-btn--loading")} style={{ flex: 2, justifyContent: "center" }} disabled={saving}><span>{saving ? "Assigning..." : "Assign Shift"}</span></button></div>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
 
@@ -857,24 +858,24 @@ function RequestLeaveModal({ staff, onClose, onSaved }: { staff: StaffProfileDat
   }
 
   return (
-    <div className="pp-modal-overlay" onClick={onClose}>
-      <div className="pp-modal" onClick={(event) => event.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="pp-modal">
         <div className="pp-modal-header"><span className="pp-modal-title">Request Leave</span><button className="pp-dp-close" style={{ position: "static" }} onClick={onClose}><CloseIcon /></button></div>
         <form onSubmit={handleSave}>
           <div className="pp-modal-body">
             {error && <div className="pp-field-error">{error}</div>}
-            <div className="pp-field"><label className="pp-field-label">Staff member <span className="pp-required">*</span></label><select className="pp-input" value={form.staff_id} onChange={(event) => setForm((current) => ({ ...current, staff_id: event.target.value }))}>{staff.map((member) => <option key={member.id} value={member.id}>{member.full_name}</option>)}</select></div>
-            <div className="pp-field"><label className="pp-field-label">Leave type</label><select className="pp-input" value={form.type} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value }))}><option value="annual">Annual leave</option><option value="sick">Sick leave</option><option value="personal">Personal leave</option><option value="unpaid">Unpaid leave</option></select></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="staff-member-2">Staff member <span className="pp-required">*</span></label><select id="staff-member-2" className="pp-input" value={form.staff_id} onChange={(event) => setForm((current) => ({ ...current, staff_id: event.target.value }))}>{staff.map((member) => <option key={member.id} value={member.id}>{member.full_name}</option>)}</select></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="leave-type-1">Leave type</label><select id="leave-type-1" className="pp-input" value={form.type} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value }))}><option value="annual">Annual leave</option><option value="sick">Sick leave</option><option value="personal">Personal leave</option><option value="unpaid">Unpaid leave</option></select></div>
             <div className="pp-row-2">
-              <div className="pp-field"><label className="pp-field-label">Start date <span className="pp-required">*</span></label><input className="pp-input" type="date" value={form.start_date} onChange={(event) => setForm((current) => ({ ...current, start_date: event.target.value }))} /></div>
-              <div className="pp-field"><label className="pp-field-label">End date <span className="pp-required">*</span></label><input className="pp-input" type="date" value={form.end_date} onChange={(event) => setForm((current) => ({ ...current, end_date: event.target.value }))} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="start-date-1">Start date <span className="pp-required">*</span></label><input id="start-date-1" className="pp-input" type="date" value={form.start_date} onChange={(event) => setForm((current) => ({ ...current, start_date: event.target.value }))} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="end-date-1">End date <span className="pp-required">*</span></label><input id="end-date-1" className="pp-input" type="date" value={form.end_date} onChange={(event) => setForm((current) => ({ ...current, end_date: event.target.value }))} /></div>
             </div>
-            <div className="pp-field"><label className="pp-field-label">Reason</label><textarea className="pp-input" rows={3} value={form.reason} onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))} style={{ resize: "none" }} /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="reason-1">Reason</label><textarea id="reason-1" className="pp-input" rows={3} value={form.reason} onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))} style={{ resize: "none" }} /></div>
           </div>
           <div className="pp-modal-footer"><button type="button" className="pp-btn pp-btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button><button type="submit" className={cn("pp-btn pp-btn-primary", saving && "pp-btn--loading")} style={{ flex: 2, justifyContent: "center" }} disabled={saving}><span>{saving ? "Saving..." : "Submit Leave Request"}</span></button></div>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
 

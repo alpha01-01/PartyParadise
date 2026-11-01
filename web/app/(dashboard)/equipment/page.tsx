@@ -6,6 +6,7 @@ import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import api, { normaliseError } from "@/lib/api";
 import { downloadCsv } from "@/lib/export";
 import type { Equipment, EquipmentStatus } from "@/lib/types";
+import { ModalOverlay } from "@/components/ModalOverlay";
 
 interface MaintenanceEntry {
   id: string;
@@ -121,7 +122,7 @@ export default function EquipmentPage() {
         <div className="pp-filter-bar">
           <div className="pp-search-wrap">
             <SearchIcon />
-            <input className="pp-search-input" placeholder="Search equipment, category, or serial" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <input className="pp-search-input" aria-label="Search" placeholder="Search equipment, category, or serial" value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
           <div className="pp-filter-tabs">
             {FILTER_STATUSES.map((tab) => (
@@ -335,21 +336,21 @@ function AddEquipmentModal({ onClose, onSaved }: { onClose: () => void; onSaved:
   }
 
   return (
-    <div className="pp-modal-overlay" onClick={onClose}>
-      <div className="pp-modal" onClick={(event) => event.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="pp-modal">
         <div className="pp-modal-header"><span className="pp-modal-title">Add Equipment</span><button className="pp-dp-close" style={{ position: "static" }} onClick={onClose}><CloseIcon /></button></div>
         <form onSubmit={handleSave}>
           <div className="pp-modal-body">
             {error && <div className="pp-field-error">{error}</div>}
-            <div className="pp-field"><label className="pp-field-label">Name <span className="pp-required">*</span></label><input className="pp-input" placeholder="e.g. 360 Photobooth Platform #3" value={name} onChange={(event) => setName(event.target.value)} autoFocus /></div>
-            <div className="pp-field"><label className="pp-field-label">Category</label><select className="pp-input" value={category} onChange={(event) => setCategory(event.target.value)}>{["Photobooth", "Backdrop", "Lighting", "Props", "Transport"].map((value) => <option key={value}>{value}</option>)}</select></div>
-            <div className="pp-row-2"><div className="pp-field"><label className="pp-field-label">Serial number</label><input className="pp-input" placeholder="Optional" value={serial} onChange={(event) => setSerial(event.target.value)} /></div><div className="pp-field"><label className="pp-field-label">Purchase cost (GHS)</label><input className="pp-input" type="number" placeholder="0.00" value={cost} onChange={(event) => setCost(event.target.value)} /></div></div>
-            <div className="pp-field"><label className="pp-field-label">Condition</label><select className="pp-input" value={condition} onChange={(event) => setCondition(event.target.value)}><option value="excellent">Excellent</option><option value="good">Good</option><option value="fair">Fair</option><option value="poor">Poor</option></select></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="name-1">Name <span className="pp-required">*</span></label><input id="name-1" className="pp-input" placeholder="e.g. 360 Photobooth Platform #3" value={name} onChange={(event) => setName(event.target.value)} autoFocus /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="category-1">Category</label><select id="category-1" className="pp-input" value={category} onChange={(event) => setCategory(event.target.value)}>{["Photobooth", "Backdrop", "Lighting", "Props", "Transport"].map((value) => <option key={value}>{value}</option>)}</select></div>
+            <div className="pp-row-2"><div className="pp-field"><label className="pp-field-label" htmlFor="serial-number-1">Serial number</label><input id="serial-number-1" className="pp-input" placeholder="Optional" value={serial} onChange={(event) => setSerial(event.target.value)} /></div><div className="pp-field"><label className="pp-field-label" htmlFor="purchase-cost-ghs-1">Purchase cost (GHS)</label><input id="purchase-cost-ghs-1" className="pp-input" type="number" placeholder="0.00" value={cost} onChange={(event) => setCost(event.target.value)} /></div></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="condition-1">Condition</label><select id="condition-1" className="pp-input" value={condition} onChange={(event) => setCondition(event.target.value)}><option value="excellent">Excellent</option><option value="good">Good</option><option value="fair">Fair</option><option value="poor">Poor</option></select></div>
           </div>
           <div className="pp-modal-footer"><button type="button" className="pp-btn pp-btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button><button type="submit" className={cn("pp-btn pp-btn-primary", saving && "pp-btn--loading")} style={{ flex: 2, justifyContent: "center" }} disabled={saving}><span>{saving ? "Adding..." : "Add Equipment"}</span></button></div>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
 
@@ -390,24 +391,24 @@ function EditEquipmentModal({
   }
 
   return (
-    <div className="pp-modal-overlay" onClick={onClose}>
-      <div className="pp-modal" onClick={(event) => event.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="pp-modal">
         <div className="pp-modal-header"><span className="pp-modal-title">Edit Equipment</span><button className="pp-dp-close" style={{ position: "static" }} onClick={onClose}><CloseIcon /></button></div>
         <form onSubmit={handleSave}>
           <div className="pp-modal-body">
             {error && <div className="pp-field-error">{error}</div>}
-            <div className="pp-field"><label className="pp-field-label">Name <span className="pp-required">*</span></label><input className="pp-input" value={name} onChange={(event) => setName(event.target.value)} autoFocus /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="name-2">Name <span className="pp-required">*</span></label><input id="name-2" className="pp-input" value={name} onChange={(event) => setName(event.target.value)} autoFocus /></div>
             <div className="pp-row-2">
-              <div className="pp-field"><label className="pp-field-label">Category</label><input className="pp-input" value={category} onChange={(event) => setCategory(event.target.value)} /></div>
-              <div className="pp-field"><label className="pp-field-label">Status</label><select className="pp-input" value={status} onChange={(event) => setStatus(event.target.value as EquipmentStatus)}>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="category-2">Category</label><input id="category-2" className="pp-input" value={category} onChange={(event) => setCategory(event.target.value)} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="status-1">Status</label><select id="status-1" className="pp-input" value={status} onChange={(event) => setStatus(event.target.value as EquipmentStatus)}>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
             </div>
-            <div className="pp-field"><label className="pp-field-label">Condition</label><select className="pp-input" value={condition} onChange={(event) => setCondition(event.target.value)}><option value="excellent">Excellent</option><option value="good">Good</option><option value="fair">Fair</option><option value="poor">Poor</option></select></div>
-            <div className="pp-field"><label className="pp-field-label">Notes</label><textarea className="pp-input" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} style={{ resize: "none" }} /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="condition-2">Condition</label><select id="condition-2" className="pp-input" value={condition} onChange={(event) => setCondition(event.target.value)}><option value="excellent">Excellent</option><option value="good">Good</option><option value="fair">Fair</option><option value="poor">Poor</option></select></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="notes-1">Notes</label><textarea id="notes-1" className="pp-input" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} style={{ resize: "none" }} /></div>
           </div>
           <div className="pp-modal-footer"><button type="button" className="pp-btn pp-btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button><button type="submit" className={cn("pp-btn pp-btn-primary", saving && "pp-btn--loading")} style={{ flex: 2, justifyContent: "center" }} disabled={saving}><span>{saving ? "Saving..." : "Save Changes"}</span></button></div>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
 

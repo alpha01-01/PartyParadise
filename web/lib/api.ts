@@ -216,7 +216,10 @@ function validationMessage(detail: unknown): string | null {
   return detail
     .map((item: { loc?: unknown[]; msg?: string }) => {
       const field = item.loc?.[item.loc.length - 1];
-      return field && field !== "body" ? `${field}: ${item.msg}` : item.msg;
+      const message = (item.msg ?? "").replace(/^Value error, /, "");
+      if (!field || field === "body") return message;
+      const name = String(field).replace(/_/g, " ");
+      return `${name[0].toUpperCase()}${name.slice(1)}: ${message.toLowerCase()}`;
     })
     .join("; ");
 }

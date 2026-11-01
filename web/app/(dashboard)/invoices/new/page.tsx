@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useBookings } from "@/hooks/useBookings";
 import { generateInvoiceFromBooking } from "@/hooks";
 import api from "@/lib/api";
+import { ManualInvoiceForm } from "./ManualInvoiceForm";
 import { formatDate, formatCurrency, SERVICE_TYPE_LABELS } from "@/lib/utils";
 import type { Booking } from "@/lib/types";
 
@@ -15,7 +16,7 @@ export default function NewInvoicePage() {
   const [creatingId, setCreatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { bookings, loading, error: bookingsError } = useBookings({ page_size: 50 });
+  const { bookings, loading, error: bookingsError } = useBookings({ page_size: 100, uninvoiced: true });
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -49,7 +50,7 @@ export default function NewInvoicePage() {
         <div>
           <h1 className="pp-page-title">Create Invoice</h1>
           <p className="pp-page-subtitle">
-            Choose a booking to generate an invoice
+            Generate an invoice from a booking, or enter one by hand
           </p>
         </div>
         <Link href="/invoices" className="pp-btn pp-btn-ghost">
@@ -57,13 +58,15 @@ export default function NewInvoicePage() {
         </Link>
       </div>
 
+      <ManualInvoiceForm />
+
       {bookingsError && <div className="pp-alert pp-alert-error">{bookingsError}</div>}
       {error && <div className="pp-alert pp-alert-error">{error}</div>}
 
       <div className="pp-card" style={{ padding: 18, marginBottom: 16 }}>
         <div className="pp-search-wrap">
           <input
-            className="pp-search-input"
+            className="pp-search-input" aria-label="Search"
             placeholder="Search by client or reference..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -79,7 +82,7 @@ export default function NewInvoicePage() {
         ) : filtered.length === 0 ? (
           <div className="pp-empty">
             <div className="pp-empty-icon">+</div>
-            <div className="pp-empty-title">No bookings found</div>
+            <div className="pp-empty-title">No bookings waiting for an invoice</div>
             <p className="pp-empty-sub">Create a booking first, then generate an invoice.</p>
             <Link href="/bookings/new" className="pp-btn pp-btn-primary">
               Create Booking

@@ -4,10 +4,11 @@ import { useState } from "react";
 import { generateInvoiceFromBooking, useStaff, useEquipment } from "@/hooks";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useBooking, updateBookingStatus, addBookingNote, assignStaff, allocateEquipment, updateBookingNote } from "@/hooks/useBookings";
+import { useBooking, updateBookingStatus, addBookingNote, assignStaff, allocateEquipment, addBookingService, updateBookingNote } from "@/hooks/useBookings";
 import { normaliseError } from "@/lib/api";
 import { formatCurrency, formatDate, BOOKING_STATUS_LABELS, SERVICE_TYPE_LABELS, cn } from "@/lib/utils";
 import type { BookingStatus } from "@/lib/types";
+import { ModalOverlay } from "@/components/ModalOverlay";
 
 // ─── Status pipeline ──────────────────────────────────────────
 const STATUS_STEPS: BookingStatus[] = [
@@ -78,6 +79,29 @@ export default function BookingDetailPage() {
       }
       setAllocating(false);
     }
+  const [showAddService, setShowAddService] = useState(false);
+  const [serviceForm, setServiceForm] = useState({ service: "", description: "", price: "" });
+  const [addingService, setAddingService] = useState(false);
+
+  async function handleAddService(e: React.FormEvent) {
+    e.preventDefault();
+    setAddingService(true);
+    setActionError(null);
+    try {
+      await addBookingService(id, {
+        service: serviceForm.service.trim(),
+        description: serviceForm.description.trim() || undefined,
+        price: serviceForm.price,
+      });
+      setShowAddService(false);
+      setServiceForm({ service: "", description: "", price: "" });
+      refresh();
+    } catch (err) {
+      setActionError(normaliseError(err).message);
+    }
+    setAddingService(false);
+  }
+
   const [showAssignStaff, setShowAssignStaff] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
@@ -323,7 +347,7 @@ export default function BookingDetailPage() {
           <div className="pp-card" style={{ padding: 0 }}>
             <div className="pp-card-header">
               <span className="pp-card-title">Services & Pricing</span>
-              <button className="pp-card-link">+ Add Service</button>
+              <button className="pp-card-link" onClick={() => setShowAddService(true)}>+ Add Service</button>
             </div>
             {booking.services?.length > 0 ? (
               <>
@@ -367,9 +391,42 @@ export default function BookingDetailPage() {
             </div>
           </div>
 
+          {/* Add Service Modal */}
+          {showAddService && (
+            <ModalOverlay onClose={() => setShowAddService(false)}>
+              <div className="pp-modal">
+                <div className="pp-modal-header">
+                  <span className="pp-modal-title">Add Service</span>
+                  <button className="pp-dp-close" aria-label="Close" onClick={() => setShowAddService(false)}>&times;</button>
+                </div>
+                <form onSubmit={handleAddService}>
+                  <div className="pp-modal-body">
+                    {actionError && <div className="pp-field-error">{actionError}</div>}
+                    <div className="pp-field">
+                      <label className="pp-field-label" htmlFor="service-1">Service <span className="pp-required">*</span></label>
+                      <input id="service-1" className="pp-input" value={serviceForm.service} onChange={(e) => setServiceForm((f) => ({ ...f, service: e.target.value }))} placeholder="e.g. Balloon arch" required autoFocus />
+                    </div>
+                    <div className="pp-field">
+                      <label className="pp-field-label" htmlFor="notes-1">Notes</label>
+                      <input id="notes-1" className="pp-input" value={serviceForm.description} onChange={(e) => setServiceForm((f) => ({ ...f, description: e.target.value }))} />
+                    </div>
+                    <div className="pp-field">
+                      <label className="pp-field-label" htmlFor="price-ghs-1">Price (GHS) <span className="pp-required">*</span></label>
+                      <input id="price-ghs-1" className="pp-input" type="number" min="0" step="0.01" value={serviceForm.price} onChange={(e) => setServiceForm((f) => ({ ...f, price: e.target.value }))} required />
+                    </div>
+                  </div>
+                  <div className="pp-modal-footer">
+                    <button type="button" className="pp-btn pp-btn-ghost" onClick={() => setShowAddService(false)}>Cancel</button>
+                    <button type="submit" className="pp-btn pp-btn-primary" disabled={addingService}>{addingService ? "Adding..." : "Add Service"}</button>
+                  </div>
+                </form>
+              </div>
+            </ModalOverlay>
+          )}
+
           {/* Assign Staff Modal */}
           {showAssignStaff && (
-            <div className="pp-modal-overlay">
+            <ModalOverlay onClose={() => setShowAssignStaff(false)}>
               <div className="pp-modal">
                 <div className="pp-modal-header">
                   <span className="pp-modal-title">Assign Staff</span>
@@ -378,8 +435,8 @@ export default function BookingDetailPage() {
                 <form onSubmit={handleAssignStaff}>
                   <div className="pp-modal-body">
                     <div className="pp-field">
-                      <label className="pp-field-label">Staff Member <span className="pp-required">*</span></label>
-                      <select
+                      <label className="pp-field-label" htmlFor="staff-member-1">Staff Member <span className="pp-required">*</span></label>
+                      <select id="staff-member-1"
                         className="pp-input"
                         value={selectedStaff}
                         onChange={e => setSelectedStaff(e.target.value)}
@@ -393,8 +450,8 @@ export default function BookingDetailPage() {
                       </select>
                     </div>
                     <div className="pp-field">
-                      <label className="pp-field-label">Role <span className="pp-required">*</span></label>
-                      <input
+                      <label className="pp-field-label" htmlFor="role-1">Role <span className="pp-required">*</span></label>
+                      <input id="role-1"
                         className="pp-input"
                         value={selectedRole}
                         onChange={e => setSelectedRole(e.target.value)}
@@ -415,7 +472,7 @@ export default function BookingDetailPage() {
                   </div>
                 </form>
               </div>
-            </div>
+            </ModalOverlay>
           )}
 
           {/* Equipment */}
@@ -438,7 +495,7 @@ export default function BookingDetailPage() {
 
           {/* Allocate Equipment Modal */}
           {showAllocateEquipment && (
-            <div className="pp-modal-overlay">
+            <ModalOverlay onClose={() => setShowAllocateEquipment(false)}>
               <div className="pp-modal">
                 <div className="pp-modal-header">
                   <span className="pp-modal-title">Allocate Equipment</span>
@@ -447,8 +504,8 @@ export default function BookingDetailPage() {
                 <form onSubmit={handleAllocateEquipment}>
                   <div className="pp-modal-body">
                     <div className="pp-field">
-                      <label className="pp-field-label">Equipment <span className="pp-required">*</span></label>
-                      <select
+                      <label className="pp-field-label" htmlFor="equipment-1">Equipment <span className="pp-required">*</span></label>
+                      <select id="equipment-1"
                         className="pp-input"
                         value={selectedEquipment}
                         onChange={e => setSelectedEquipment(e.target.value)}
@@ -462,8 +519,8 @@ export default function BookingDetailPage() {
                       </select>
                     </div>
                     <div className="pp-field">
-                      <label className="pp-field-label">Quantity <span className="pp-required">*</span></label>
-                      <input
+                      <label className="pp-field-label" htmlFor="quantity-1">Quantity <span className="pp-required">*</span></label>
+                      <input id="quantity-1"
                         className="pp-input"
                         type="number"
                         min={1}
@@ -485,7 +542,7 @@ export default function BookingDetailPage() {
                   </div>
                 </form>
               </div>
-            </div>
+            </ModalOverlay>
           )}
 
           {/* Notes */}

@@ -126,7 +126,7 @@ export default function ContractsPage() {
         <div className="pp-search-wrap">
           <SearchIcon />
           <input
-            className="pp-search-input"
+            className="pp-search-input" aria-label="Search"
             placeholder="Search by contract reference or client"
             value={search}
             onChange={(e) => setSearch(e.target.value)}

@@ -11,8 +11,10 @@ import {
 } from "@/hooks";
 import { formatCurrency, formatDateTime, cn } from "@/lib/utils";
 import { normaliseError } from "@/lib/api";
+import { useBookings } from "@/hooks/useBookings";
 import { downloadCsv } from "@/lib/export";
 import type { InventoryImportResult, InventoryItem, InventoryTransaction } from "@/lib/types";
+import { ModalOverlay } from "@/components/ModalOverlay";
 
 type TxnType = "purchase" | "usage" | "adjustment" | "damage" | "return";
 type ItemForm = {
@@ -161,9 +163,9 @@ export default function InventoryPage() {
         <div className="pp-filter-bar">
           <div className="pp-search-wrap">
             <SearchIcon />
-            <input className="pp-search-input" placeholder="Search items, SKU, or stock location" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <input className="pp-search-input" aria-label="Search" placeholder="Search items, SKU, or stock location" value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
-          <select className="pp-period-select" value={category} onChange={(event) => setCategory(event.target.value)}>
+          <select className="pp-period-select" aria-label="Category" value={category} onChange={(event) => setCategory(event.target.value)}>
             <option value="all">All categories</option>
             {categories.map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
@@ -473,8 +475,8 @@ function InventoryItemModal({
   }
 
   return (
-    <div className="pp-modal-overlay" onClick={onClose}>
-      <div className="pp-modal" onClick={(event) => event.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="pp-modal">
         <div className="pp-modal-header">
           <span className="pp-modal-title">{mode === "create" ? "Add Inventory Item" : "Edit Inventory Item"}</span>
           <button className="pp-dp-close" style={{ position: "static" }} onClick={onClose}><CloseIcon /></button>
@@ -482,26 +484,26 @@ function InventoryItemModal({
         <form onSubmit={handleSave}>
           <div className="pp-modal-body">
             {error && <div className="pp-field-error">{error}</div>}
-            <div className="pp-field"><label className="pp-field-label">Item name <span className="pp-required">*</span></label><input className="pp-input" value={form.name} onChange={(event) => setField("name", event.target.value)} autoFocus /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="item-name-1">Item name <span className="pp-required">*</span></label><input id="item-name-1" className="pp-input" value={form.name} onChange={(event) => setField("name", event.target.value)} autoFocus /></div>
             <div className="pp-row-2">
-              <div className="pp-field"><label className="pp-field-label">SKU</label><input className="pp-input" value={form.sku} onChange={(event) => setField("sku", event.target.value)} placeholder="Optional stock code" /></div>
-              <div className="pp-field"><label className="pp-field-label">Category <span className="pp-required">*</span></label><input className="pp-input" value={form.category} onChange={(event) => setField("category", event.target.value)} placeholder="e.g. Balloons, Drinks, Cleaning" /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="sku-1">SKU</label><input id="sku-1" className="pp-input" value={form.sku} onChange={(event) => setField("sku", event.target.value)} placeholder="Optional stock code" /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="category-1">Category <span className="pp-required">*</span></label><input id="category-1" className="pp-input" value={form.category} onChange={(event) => setField("category", event.target.value)} placeholder="e.g. Balloons, Drinks, Cleaning" /></div>
             </div>
             <div className="pp-row-2">
-              <div className="pp-field"><label className="pp-field-label">Unit <span className="pp-required">*</span></label><input className="pp-input" value={form.unit} onChange={(event) => setField("unit", event.target.value)} placeholder="e.g. pack, bottle, piece" /></div>
-              <div className="pp-field"><label className="pp-field-label">Reorder level</label><input className="pp-input" type="number" min="0" value={form.reorder_level} onChange={(event) => setField("reorder_level", event.target.value)} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="unit-1">Unit <span className="pp-required">*</span></label><input id="unit-1" className="pp-input" value={form.unit} onChange={(event) => setField("unit", event.target.value)} placeholder="e.g. pack, bottle, piece" /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="reorder-level-1">Reorder level</label><input id="reorder-level-1" className="pp-input" type="number" min="0" value={form.reorder_level} onChange={(event) => setField("reorder_level", event.target.value)} /></div>
             </div>
             {mode === "create" && (
               <div className="pp-field">
-                <label className="pp-field-label">Opening stock</label>
-                <input className="pp-input" type="number" min="0" value={form.initial_quantity} onChange={(event) => setField("initial_quantity", event.target.value)} />
+                <label className="pp-field-label" htmlFor="opening-stock-1">Opening stock</label>
+                <input id="opening-stock-1" className="pp-input" type="number" min="0" value={form.initial_quantity} onChange={(event) => setField("initial_quantity", event.target.value)} />
               </div>
             )}
             <div className="pp-row-2">
-              <div className="pp-field"><label className="pp-field-label">Unit cost</label><input className="pp-input" type="number" min="0" step="0.01" value={form.unit_cost} onChange={(event) => setField("unit_cost", event.target.value)} /></div>
-              <div className="pp-field"><label className="pp-field-label">Unit price</label><input className="pp-input" type="number" min="0" step="0.01" value={form.unit_price} onChange={(event) => setField("unit_price", event.target.value)} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="unit-cost-1">Unit cost</label><input id="unit-cost-1" className="pp-input" type="number" min="0" step="0.01" value={form.unit_cost} onChange={(event) => setField("unit_cost", event.target.value)} /></div>
+              <div className="pp-field"><label className="pp-field-label" htmlFor="unit-price-1">Unit price</label><input id="unit-price-1" className="pp-input" type="number" min="0" step="0.01" value={form.unit_price} onChange={(event) => setField("unit_price", event.target.value)} /></div>
             </div>
-            <div className="pp-field"><label className="pp-field-label">Storage location</label><input className="pp-input" value={form.location} onChange={(event) => setField("location", event.target.value)} placeholder="Shelf, room, or warehouse zone" /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="storage-location-1">Storage location</label><input id="storage-location-1" className="pp-input" value={form.location} onChange={(event) => setField("location", event.target.value)} placeholder="Shelf, room, or warehouse zone" /></div>
           </div>
           <div className="pp-modal-footer">
             <button type="button" className="pp-btn pp-btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
@@ -511,12 +513,13 @@ function InventoryItemModal({
           </div>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
 
 function StockTransactionModal({ item, onClose, onSaved }: { item: InventoryItem; onClose: () => void; onSaved: () => void; }) {
   const [form, setForm] = useState<TxnForm>({ type: "purchase", quantity: "", reason: "", booking_id: "" });
+  const { bookings } = useBookings({ page_size: 100 });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -556,8 +559,8 @@ function StockTransactionModal({ item, onClose, onSaved }: { item: InventoryItem
   }
 
   return (
-    <div className="pp-modal-overlay" onClick={onClose}>
-      <div className="pp-modal" onClick={(event) => event.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="pp-modal">
         <div className="pp-modal-header">
           <span className="pp-modal-title">Record Stock Movement</span>
           <button className="pp-dp-close" style={{ position: "static" }} onClick={onClose}><CloseIcon /></button>
@@ -572,8 +575,8 @@ function StockTransactionModal({ item, onClose, onSaved }: { item: InventoryItem
               </div>
             </div>
             <div className="pp-field">
-              <label className="pp-field-label">Transaction type <span className="pp-required">*</span></label>
-              <select className="pp-input" value={form.type} onChange={(event) => setField("type", event.target.value)}>
+              <label className="pp-field-label" htmlFor="transaction-type-1">Transaction type <span className="pp-required">*</span></label>
+              <select id="transaction-type-1" className="pp-input" value={form.type} onChange={(event) => setField("type", event.target.value)}>
                 <option value="purchase">Purchase - stock in</option>
                 <option value="return">Return - stock back in</option>
                 <option value="usage">Usage - event consumption</option>
@@ -582,9 +585,14 @@ function StockTransactionModal({ item, onClose, onSaved }: { item: InventoryItem
               </select>
               <div style={{ fontSize: 11, color: "var(--pp-text-3)", marginTop: 6 }}>{TXN_HELPERS[form.type]}</div>
             </div>
-            <div className="pp-field"><label className="pp-field-label">Quantity <span className="pp-required">*</span></label><input className="pp-input" type="number" {...(form.type === "adjustment" ? {} : { min: "1" })} placeholder="How many units moved?" value={form.quantity} onChange={(event) => setField("quantity", event.target.value)} autoFocus /></div>
-            <div className="pp-field"><label className="pp-field-label">Reason / notes</label><input className="pp-input" placeholder="Brief reason for this stock movement" value={form.reason} onChange={(event) => setField("reason", event.target.value)} /></div>
-            <div className="pp-field"><label className="pp-field-label">Linked booking (optional)</label><input className="pp-input" placeholder="Paste booking ID when stock was used for an event" value={form.booking_id} onChange={(event) => setField("booking_id", event.target.value)} /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="quantity-1">Quantity <span className="pp-required">*</span></label><input id="quantity-1" className="pp-input" type="number" {...(form.type === "adjustment" ? {} : { min: "1" })} placeholder="How many units moved?" value={form.quantity} onChange={(event) => setField("quantity", event.target.value)} autoFocus /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="reason-notes-1">Reason / notes</label><input id="reason-notes-1" className="pp-input" placeholder="Brief reason for this stock movement" value={form.reason} onChange={(event) => setField("reason", event.target.value)} /></div>
+            <div className="pp-field"><label className="pp-field-label" htmlFor="linked-booking-optional-1">Linked booking (optional)</label><select id="linked-booking-optional-1" className="pp-input" value={form.booking_id} onChange={(event) => setField("booking_id", event.target.value)}>
+                <option value="">No booking</option>
+                {bookings.map((booking) => (
+                  <option key={booking.id} value={booking.id}>{booking.reference} - {booking.client_name}</option>
+                ))}
+              </select></div>
           </div>
           <div className="pp-modal-footer">
             <button type="button" className="pp-btn pp-btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
@@ -592,7 +600,7 @@ function StockTransactionModal({ item, onClose, onSaved }: { item: InventoryItem
           </div>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
 
@@ -640,8 +648,8 @@ function InventoryImportModal({
   }
 
   return (
-    <div className="pp-modal-overlay" onClick={onClose}>
-      <div className="pp-modal" onClick={(event) => event.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="pp-modal">
         <div className="pp-modal-header">
           <span className="pp-modal-title">Import Inventory Items</span>
           <button className="pp-dp-close" style={{ position: "static" }} onClick={onClose}><CloseIcon /></button>
@@ -657,8 +665,8 @@ function InventoryImportModal({
             </div>
 
             <div className="pp-field">
-              <label className="pp-field-label">Import file <span className="pp-required">*</span></label>
-              <input
+              <label className="pp-field-label" htmlFor="import-file-1">Import file <span className="pp-required">*</span></label>
+              <input id="import-file-1"
                 className="pp-input"
                 type="file"
                 accept=".csv,.xlsx"
@@ -700,7 +708,7 @@ function InventoryImportModal({
           </div>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
 

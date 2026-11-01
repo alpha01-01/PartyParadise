@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import extract, or_
+from sqlalchemy import exists, extract, or_
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
@@ -348,12 +348,14 @@ def list_bookings(
     from_date: date = Query(None),
     to_date: date = Query(None),
     client_id: UUID = Query(None),
+    uninvoiced: bool = Query(False),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     _=Depends(require_permission("bookings:read")),
 ):
     from app.models.bookings import Booking
+    from app.models.invoicing import Invoice
     from app.models.clients import Client
     from app.utils.pagination import paginate
 
@@ -380,6 +382,12 @@ def list_bookings(
                 Booking.event_type.ilike(pattern),
                 Booking.venue_name.ilike(pattern),
             )
+        )
+
+    if uninvoiced:
+        query = query.filter(
+            Booking.status != "cancelled",
+            ~exists().where(Invoice.booking_id == Booking.id),
         )
 
     result = paginate(query.order_by(Booking.event_date.asc()), page, page_size)
@@ -548,6 +556,37 @@ def update_status(
         )
 
     db.commit()
+    booking = _base_booking_query(db).filter(Booking.id == booking_id).first()
+    return _booking_to_response(booking, include_services=True, include_detail=True)
+
+
+@router.post("/{booking_id}/services", status_code=201)
+def add_service(
+    booking_id: UUID,
+    data: BookingServiceSchema,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("bookings:update")),
+):
+    from app.models.bookings import Booking, BookingService
+
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if booking.status in ("completed", "cancelled"):
+        raise HTTPException(status_code=400, detail=f"Cannot add a service to a {booking.status} booking")
+
+    db.add(BookingService(booking_id=booking_id, **data.model_dump(exclude={"id", "booking_id"})))
+    record_audit(
+        db,
+        user_id=current_user.id,
+        action="add_service",
+        module="bookings",
+        entity_type="booking",
+        entity_id=booking.id,
+        changes={"service": data.service, "price": data.price},
+    )
+    db.commit()
+
     booking = _base_booking_query(db).filter(Booking.id == booking_id).first()
     return _booking_to_response(booking, include_services=True, include_detail=True)
 

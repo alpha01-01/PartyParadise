@@ -25,6 +25,7 @@ import api, { normaliseError } from "@/lib/api";
 import { usePdfDownload } from "@/hooks/usePdfDownload";
 import type { Invoice, InvoiceStatus, PaymentMethod } from "@/lib/types";
 import { downloadCsv } from "@/lib/export";
+import { ModalOverlay } from "@/components/ModalOverlay";
 
 // ─── Constants ────────────────────────────────────────────────
 const FILTER_TABS: { value: InvoiceStatus | "all"; label: string }[] = [
@@ -183,7 +184,7 @@ export default function InvoicesPage() {
         <div className="pp-search-wrap">
           <SearchIcon />
           <input
-            className="pp-search-input"
+            className="pp-search-input" aria-label="Search"
             placeholder="Search by invoice reference, booking, or client"
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
@@ -645,8 +646,8 @@ function RecordPaymentModal({
   }
 
   return (
-    <div className="pp-modal-overlay" onClick={onClose}>
-      <div className="pp-modal" onClick={(e) => e.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="pp-modal">
         <div className="pp-modal-header">
           <span className="pp-modal-title">Record Payment</span>
           <button className="pp-dp-close" style={{ position: "static" }} onClick={onClose}>
@@ -686,10 +687,10 @@ function RecordPaymentModal({
             )}
 
             <div className="pp-field">
-              <label className="pp-field-label">
+              <label className="pp-field-label" htmlFor="amount-ghs-1">
                 Amount (GHS) <span className="pp-required">*</span>
               </label>
-              <input
+              <input id="amount-ghs-1"
                 className="pp-input"
                 type="number"
                 min="0.01"
@@ -702,10 +703,10 @@ function RecordPaymentModal({
             </div>
 
             <div className="pp-field">
-              <label className="pp-field-label">
+              <label className="pp-field-label" htmlFor="payment-method-1">
                 Payment method <span className="pp-required">*</span>
               </label>
-              <select
+              <select id="payment-method-1"
                 className="pp-input"
                 value={method}
                 onChange={(e) => setMethod(e.target.value as PaymentMethod)}
@@ -717,10 +718,10 @@ function RecordPaymentModal({
             </div>
 
             <div className="pp-field">
-              <label className="pp-field-label">
+              <label className="pp-field-label" htmlFor="date-received-1">
                 Date received <span className="pp-required">*</span>
               </label>
-              <input
+              <input id="date-received-1"
                 className="pp-input"
                 type="date"
                 value={date}
@@ -730,8 +731,8 @@ function RecordPaymentModal({
             </div>
 
             <div className="pp-field">
-              <label className="pp-field-label">Transaction reference (optional)</label>
-              <input
+              <label className="pp-field-label" htmlFor="transaction-reference-op-1">Transaction reference (optional)</label>
+              <input id="transaction-reference-op-1"
                 className="pp-input"
                 placeholder="e.g. MoMo transaction ID"
                 value={providerRef}
@@ -740,8 +741,8 @@ function RecordPaymentModal({
             </div>
 
             <div className="pp-field">
-              <label className="pp-field-label">Notes (optional)</label>
-              <textarea
+              <label className="pp-field-label" htmlFor="notes-optional-1">Notes (optional)</label>
+              <textarea id="notes-optional-1"
                 className="pp-input"
                 rows={2}
                 placeholder="Any extra context the finance team should keep with this payment"
@@ -773,7 +774,7 @@ function RecordPaymentModal({
           </div>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
 

@@ -202,7 +202,7 @@ export default function BookingsPage() {
         <div className="pp-search-wrap">
           <SearchIcon />
           <input
-            className="pp-search-input"
+            className="pp-search-input" aria-label="Search"
             placeholder="Search bookings or clients…"
             defaultValue={filters.search ?? ""}
             onChange={(e) => {

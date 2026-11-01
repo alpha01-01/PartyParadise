@@ -1,6 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap");
 
 :root {
+  color-scheme: dark;
   --pp-bg: #0e0d0b;
   --pp-surface: #141310;
   --pp-surface2: #1c1a16;
@@ -10,7 +11,7 @@
   --pp-gold-dim: #c49a20;
   --pp-text: #f0ead8;
   --pp-text-2: #9c9278;
-  --pp-text-3: #5c5444;
+  --pp-text-3: #8a8270;
   --pp-red: #e05a4a;
   --pp-green: #4caf7d;
   --font-d: "Syne", sans-serif;

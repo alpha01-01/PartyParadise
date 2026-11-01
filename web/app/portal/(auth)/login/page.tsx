@@ -95,9 +95,9 @@ export default function PortalLoginPage() {
                 type="button"
                 className="login-eye-btn"
                 onClick={() => setShowPassword((v) => !v)}
-                tabIndex={-1}
+                aria-label={showPassword ? "Hide password" : "Show password"}
               >
-                {showPassword ? "◎" : "○"}
+                {showPassword ? "Hide" : "Show"}
               </button>
             </div>
           </div>

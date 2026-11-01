@@ -17,6 +17,13 @@ import {
 import type { Booking } from "@/lib/types";
 
 // ─── Greeting ─────────────────────────────────────────────────
+const PERIOD_LABELS: Record<string, string> = {
+  this_month: "This Month",
+  last_month: "Last Month",
+  this_quarter: "This Quarter",
+  this_year: "This Year",
+};
+
 function greeting(): string {
   const h = new Date().getHours();
   if (h < 12) return "Good morning";
@@ -48,7 +55,9 @@ export default function DashboardPage() {
   const greet = mounted ? greeting() : "Welcome";
   const today = mounted ? todayLabel() : "";
 
-  const { data: summary, loading: summaryLoading } = useDashboard();
+  const [period, setPeriod] = useState("this_month");
+  const periodLabel = PERIOD_LABELS[period];
+  const { data: summary, loading: summaryLoading } = useDashboard(period);
   const { bookings, loading: bookingsLoading } = useBookings({ page_size: 5 });
   const { items: lowStock, loading: stockLoading } = useLowStockItems();
   const recentActivity = buildActivityFromBookings(bookings);
@@ -71,13 +80,13 @@ export default function DashboardPage() {
             )}
           </p>
         </div>
-        <PeriodSelect />
+        <PeriodSelect value={period} onChange={setPeriod} />
       </div>
 
       {/* ── Stat cards ── */}
       <div className="pp-stats-grid">
         <StatCard
-          label="Revenue · This Month"
+          label={`Revenue · ${periodLabel}`}
           value={formatCurrency(summary?.revenue_this_month, { compact: true })}
           delta={null}
           icon="₵"
@@ -85,7 +94,7 @@ export default function DashboardPage() {
           highlight
         />
         <StatCard
-          label="Bookings · This Month"
+          label={`Bookings · ${periodLabel}`}
           value={String(summary?.bookings_this_month ?? "—")}
           delta={
             summary
@@ -107,7 +116,7 @@ export default function DashboardPage() {
           loading={summaryLoading}
         />
         <StatCard
-          label="New Leads · This Month"
+          label={`New Leads · ${periodLabel}`}
           value={String(summary?.new_leads_this_month ?? "—")}
           delta={null}
           icon={<UsersIcon />}
@@ -159,7 +168,7 @@ export default function DashboardPage() {
 
       {/* ── Row 3: revenue chart, activity, staff + stock ── */}
       <div className="pp-dashboard-three-col">
-        <RevenueChart revenueThisMonth={summary?.revenue_this_month ?? null} loading={summaryLoading} />
+        <RevenueChart periodLabel={periodLabel} revenueThisMonth={summary?.revenue_this_month ?? null} loading={summaryLoading} />
         <ActivityFeed items={recentActivity} loading={bookingsLoading} />
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <StaffToday />
@@ -311,9 +320,11 @@ function UpcomingEvents({ bookings }: { bookings: Booking[] }) {
 
 // ─── Revenue chart ────────────────────────────────────────────
 function RevenueChart({
+  periodLabel,
   revenueThisMonth,
   loading,
 }: {
+  periodLabel: string;
   revenueThisMonth: number | null;
   loading: boolean;
 }) {
@@ -323,7 +334,7 @@ function RevenueChart({
   return (
     <div className="pp-card" style={{ padding: 0 }}>
       <div className="pp-card-header">
-        <span className="pp-card-title">Revenue This Month</span>
+        <span className="pp-card-title">Revenue · {periodLabel}</span>
         <Link href="/reports" className="pp-card-link">Reports →</Link>
       </div>
       {loading ? (
@@ -346,7 +357,7 @@ function RevenueChart({
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 18px 14px", fontSize: 10, color: "var(--pp-text-3)" }}>
-            <span>This month</span>
+            <span>{periodLabel}</span>
             <span>GHS {value.toLocaleString()}</span>
           </div>
         </div>
@@ -525,18 +536,17 @@ function QuickActions() {
 }
 
 // ─── Period select ────────────────────────────────────────────
-function PeriodSelect() {
-  const [period, setPeriod] = useState("this_month");
+function PeriodSelect({ value, onChange }: { value: string; onChange: (period: string) => void }) {
   return (
     <select
-      value={period}
-      onChange={(e) => setPeriod(e.target.value)}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
       className="pp-period-select"
+      aria-label="Period"
     >
-      <option value="this_month">This month</option>
-      <option value="last_month">Last month</option>
-      <option value="this_quarter">This quarter</option>
-      <option value="this_year">This year</option>
+      {Object.entries(PERIOD_LABELS).map(([period, label]) => (
+        <option key={period} value={period}>{label}</option>
+      ))}
     </select>
   );
 }

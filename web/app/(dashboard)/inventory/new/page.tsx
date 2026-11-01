@@ -67,44 +67,44 @@ export default function NewInventoryItemPage() {
       <form onSubmit={handleSubmit} className="pp-card" style={{ maxWidth: 720 }}>
         <div className="pp-row-2">
           <div className="pp-field">
-            <label className="pp-field-label">Name <span className="pp-required">*</span></label>
-            <input className="pp-input" value={form.name} onChange={(e) => set("name", e.target.value)} />
+            <label className="pp-field-label" htmlFor="name-1">Name <span className="pp-required">*</span></label>
+            <input id="name-1" className="pp-input" value={form.name} onChange={(e) => set("name", e.target.value)} />
           </div>
           <div className="pp-field">
-            <label className="pp-field-label">Category <span className="pp-required">*</span></label>
-            <input className="pp-input" value={form.category} onChange={(e) => set("category", e.target.value)} />
+            <label className="pp-field-label" htmlFor="category-1">Category <span className="pp-required">*</span></label>
+            <input id="category-1" className="pp-input" value={form.category} onChange={(e) => set("category", e.target.value)} />
           </div>
         </div>
 
         <div className="pp-row-2" style={{ marginTop: 12 }}>
           <div className="pp-field">
-            <label className="pp-field-label">SKU</label>
-            <input className="pp-input" value={form.sku} onChange={(e) => set("sku", e.target.value)} />
+            <label className="pp-field-label" htmlFor="sku-1">SKU</label>
+            <input id="sku-1" className="pp-input" value={form.sku} onChange={(e) => set("sku", e.target.value)} />
           </div>
           <div className="pp-field">
-            <label className="pp-field-label">Unit</label>
-            <input className="pp-input" value={form.unit} onChange={(e) => set("unit", e.target.value)} />
+            <label className="pp-field-label" htmlFor="unit-1">Unit</label>
+            <input id="unit-1" className="pp-input" value={form.unit} onChange={(e) => set("unit", e.target.value)} />
           </div>
         </div>
 
         <div className="pp-row-3" style={{ marginTop: 12 }}>
           <div className="pp-field">
-            <label className="pp-field-label">Reorder level</label>
-            <input className="pp-input" type="number" value={form.reorder_level} onChange={(e) => set("reorder_level", Number(e.target.value))} />
+            <label className="pp-field-label" htmlFor="reorder-level-1">Reorder level</label>
+            <input id="reorder-level-1" className="pp-input" type="number" value={form.reorder_level} onChange={(e) => set("reorder_level", Number(e.target.value))} />
           </div>
           <div className="pp-field">
-            <label className="pp-field-label">Unit cost</label>
-            <input className="pp-input" type="number" value={form.unit_cost} onChange={(e) => set("unit_cost", e.target.value)} />
+            <label className="pp-field-label" htmlFor="unit-cost-1">Unit cost</label>
+            <input id="unit-cost-1" className="pp-input" type="number" value={form.unit_cost} onChange={(e) => set("unit_cost", e.target.value)} />
           </div>
           <div className="pp-field">
-            <label className="pp-field-label">Unit price</label>
-            <input className="pp-input" type="number" value={form.unit_price} onChange={(e) => set("unit_price", e.target.value)} />
+            <label className="pp-field-label" htmlFor="unit-price-1">Unit price</label>
+            <input id="unit-price-1" className="pp-input" type="number" value={form.unit_price} onChange={(e) => set("unit_price", e.target.value)} />
           </div>
         </div>
 
         <div className="pp-field" style={{ marginTop: 12 }}>
-          <label className="pp-field-label">Location</label>
-          <input className="pp-input" value={form.location} onChange={(e) => set("location", e.target.value)} />
+          <label className="pp-field-label" htmlFor="location-1">Location</label>
+          <input id="location-1" className="pp-input" value={form.location} onChange={(e) => set("location", e.target.value)} />
         </div>
 
         <div style={{ display: "flex", gap: 8, marginTop: 16 }}>

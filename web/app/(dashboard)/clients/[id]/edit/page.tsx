@@ -135,34 +135,34 @@ export default function EditClientPage() {
             <div className="pp-edit-card-body">
               <div className="pp-row-2">
                 <div className="pp-field">
-                  <label className="pp-field-label">First name <span className="pp-required">*</span></label>
-                  <input className="pp-input" value={form.first_name} onChange={(event) => setField("first_name", event.target.value)} />
+                  <label className="pp-field-label" htmlFor="first-name-1">First name <span className="pp-required">*</span></label>
+                  <input id="first-name-1" className="pp-input" value={form.first_name} onChange={(event) => setField("first_name", event.target.value)} />
                 </div>
                 <div className="pp-field">
-                  <label className="pp-field-label">Last name <span className="pp-required">*</span></label>
-                  <input className="pp-input" value={form.last_name} onChange={(event) => setField("last_name", event.target.value)} />
-                </div>
-              </div>
-
-              <div className="pp-row-2" style={{ marginTop: 12 }}>
-                <div className="pp-field">
-                  <label className="pp-field-label">Email</label>
-                  <input className="pp-input" type="email" value={form.email} onChange={(event) => setField("email", event.target.value)} />
-                </div>
-                <div className="pp-field">
-                  <label className="pp-field-label">Phone</label>
-                  <input className="pp-input" value={form.phone} onChange={(event) => setField("phone", event.target.value)} />
+                  <label className="pp-field-label" htmlFor="last-name-1">Last name <span className="pp-required">*</span></label>
+                  <input id="last-name-1" className="pp-input" value={form.last_name} onChange={(event) => setField("last_name", event.target.value)} />
                 </div>
               </div>
 
               <div className="pp-row-2" style={{ marginTop: 12 }}>
                 <div className="pp-field">
-                  <label className="pp-field-label">WhatsApp</label>
-                  <input className="pp-input" value={form.whatsapp} onChange={(event) => setField("whatsapp", event.target.value)} />
+                  <label className="pp-field-label" htmlFor="email-1">Email</label>
+                  <input id="email-1" className="pp-input" type="email" value={form.email} onChange={(event) => setField("email", event.target.value)} />
                 </div>
                 <div className="pp-field">
-                  <label className="pp-field-label">Source</label>
-                  <input className="pp-input" value={form.source} onChange={(event) => setField("source", event.target.value)} placeholder="Referral, Instagram, walk-in, planner..." />
+                  <label className="pp-field-label" htmlFor="phone-1">Phone</label>
+                  <input id="phone-1" className="pp-input" value={form.phone} onChange={(event) => setField("phone", event.target.value)} />
+                </div>
+              </div>
+
+              <div className="pp-row-2" style={{ marginTop: 12 }}>
+                <div className="pp-field">
+                  <label className="pp-field-label" htmlFor="whatsapp-1">WhatsApp</label>
+                  <input id="whatsapp-1" className="pp-input" value={form.whatsapp} onChange={(event) => setField("whatsapp", event.target.value)} />
+                </div>
+                <div className="pp-field">
+                  <label className="pp-field-label" htmlFor="source-1">Source</label>
+                  <input id="source-1" className="pp-input" value={form.source} onChange={(event) => setField("source", event.target.value)} placeholder="Referral, Instagram, walk-in, planner..." />
                 </div>
               </div>
             </div>
@@ -176,8 +176,8 @@ export default function EditClientPage() {
             <div className="pp-edit-card-body">
               <div className="pp-row-2">
                 <div className="pp-field">
-                  <label className="pp-field-label">Status</label>
-                  <select className="pp-input" value={form.status} onChange={(event) => setField("status", event.target.value as ClientStatus)}>
+                  <label className="pp-field-label" htmlFor="status-1">Status</label>
+                  <select id="status-1" className="pp-input" value={form.status} onChange={(event) => setField("status", event.target.value as ClientStatus)}>
                     <option value="lead">Lead</option>
                     <option value="prospect">Prospect</option>
                     <option value="active">Active</option>
@@ -186,8 +186,8 @@ export default function EditClientPage() {
                   </select>
                 </div>
                 <div className="pp-field">
-                  <label className="pp-field-label">Client type</label>
-                  <select className="pp-input" value={form.client_type} onChange={(event) => setField("client_type", event.target.value as ClientType)}>
+                  <label className="pp-field-label" htmlFor="client-type-1">Client type</label>
+                  <select id="client-type-1" className="pp-input" value={form.client_type} onChange={(event) => setField("client_type", event.target.value as ClientType)}>
                     <option value="individual">Individual</option>
                     <option value="corporate">Corporate</option>
                     <option value="planner">Planner</option>
@@ -196,8 +196,8 @@ export default function EditClientPage() {
               </div>
 
               <div className="pp-field" style={{ marginTop: 12 }}>
-                <label className="pp-field-label">Internal notes</label>
-                <textarea
+                <label className="pp-field-label" htmlFor="internal-notes-1">Internal notes</label>
+                <textarea id="internal-notes-1"
                   className="pp-input"
                   rows={6}
                   value={form.notes}

@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import case, func, extract
-from datetime import date
+from datetime import date, timedelta
+from typing import Literal
 from uuid import UUID
 from decimal import Decimal
 
@@ -11,8 +12,25 @@ from app.dependencies import require_permission
 router = APIRouter()
 
 
+def _period_range(period: str, today: date) -> tuple[date, date]:
+    """The first day of a dashboard period, and the first day after it."""
+    month_start = today.replace(day=1)
+    next_month = (month_start + timedelta(days=32)).replace(day=1)
+    if period == "last_month":
+        return (month_start - timedelta(days=1)).replace(day=1), month_start
+    if period == "this_quarter":
+        first_month = 3 * ((today.month - 1) // 3) + 1
+        start = date(today.year, first_month, 1)
+        end = date(today.year + 1, 1, 1) if first_month == 10 else date(today.year, first_month + 3, 1)
+        return start, end
+    if period == "this_year":
+        return date(today.year, 1, 1), date(today.year + 1, 1, 1)
+    return month_start, next_month
+
+
 @router.get("/dashboard")
 def dashboard_summary(
+    period: Literal["this_month", "last_month", "this_quarter", "this_year"] = Query("this_month"),
     db: Session = Depends(get_db),
     _=Depends(require_permission("reports:read")),
 ):
@@ -23,20 +41,16 @@ def dashboard_summary(
     from datetime import date as today
 
     today_date = today.today()
-    month_start = today_date.replace(day=1)
+    range_start, range_end = _period_range(period, today_date)
 
-    # Bookings this month
+    # Bookings in the period
     bookings_this_month = (
         db.query(func.count(Booking.id))
-        .filter(
-            extract("year", Booking.event_date) == today_date.year,
-            extract("month", Booking.event_date) == today_date.month,
-        )
+        .filter(Booking.event_date >= range_start, Booking.event_date < range_end)
         .scalar()
     )
 
     # Upcoming bookings (next 30 days)
-    from datetime import timedelta
     upcoming = (
         db.query(func.count(Booking.id))
         .filter(
@@ -51,8 +65,8 @@ def dashboard_summary(
     revenue_this_month = (
         db.query(func.sum(Payment.amount))
         .filter(
-            extract("year", Payment.paid_at) == today_date.year,
-            extract("month", Payment.paid_at) == today_date.month,
+            Payment.paid_at >= range_start,
+            Payment.paid_at < range_end,
             Payment.status == "confirmed",
         )
         .scalar()
@@ -80,8 +94,8 @@ def dashboard_summary(
         db.query(func.count(Client.id))
         .filter(
             Client.status == "lead",
-            extract("year", Client.created_at) == today_date.year,
-            extract("month", Client.created_at) == today_date.month,
+            Client.created_at >= range_start,
+            Client.created_at < range_end,
         )
         .scalar()
     )

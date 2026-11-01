@@ -21,6 +21,7 @@ export interface BookingFilters {
   from_date?: string;
   to_date?: string;
   search?: string;
+  uninvoiced?: boolean;
   page?: number;
   page_size?: number;
 }
@@ -48,6 +49,7 @@ export function useBookings(initialFilters: BookingFilters = {}) {
     if (active.status && active.status !== "all") params.set("status", active.status);
     if (active.service_type) params.set("service_type", active.service_type);
     if (active.client_id) params.set("client_id", active.client_id);
+    if (active.uninvoiced) params.set("uninvoiced", "true");
     if (active.from_date) params.set("from_date", active.from_date);
     if (active.to_date) params.set("to_date", active.to_date);
     if (active.search?.trim()) params.set("search", active.search.trim());
@@ -226,6 +228,13 @@ export async function assignStaff(
     role,
     report_time: reportTime,
   });
+}
+
+export async function addBookingService(
+  bookingId: string,
+  data: { service: string; description?: string; price: string }
+): Promise<void> {
+  await api.post(`/bookings/${bookingId}/services`, data);
 }
 
 export async function allocateEquipment(

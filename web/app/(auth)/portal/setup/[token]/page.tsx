@@ -112,9 +112,9 @@ export default function PortalSetupPage() {
 
               <form onSubmit={handleSubmit} noValidate>
                 <div className="setup-field">
-                  <label className="setup-label">New password</label>
+                  <label className="setup-label" htmlFor="new-password-1">New password</label>
                   <div className="setup-input-wrap">
-                    <input
+                    <input id="new-password-1"
                       className="setup-input"
                       type={showPassword ? "text" : "password"}
                       placeholder="Create a strong password"
@@ -159,9 +159,9 @@ export default function PortalSetupPage() {
                 </div>
 
                 <div className="setup-field">
-                  <label className="setup-label">Confirm password</label>
+                  <label className="setup-label" htmlFor="confirm-password-1">Confirm password</label>
                   <div className="setup-input-wrap">
-                    <input
+                    <input id="confirm-password-1"
                       className={`setup-input ${confirm && confirm !== password ? "setup-input--error" : ""}`}
                       type={showPassword ? "text" : "password"}
                       placeholder="Repeat your password"

@@ -5,6 +5,7 @@ import { useExpenses, useExpenseCategories } from "@/hooks";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import api, { normaliseError } from "@/lib/api";
 import { downloadCsv } from "@/lib/export";
+import { ModalOverlay } from "@/components/ModalOverlay";
 
 // ─── Edit expense modal ──────────────────────────────────────────────
 
@@ -68,8 +69,8 @@ function EditExpenseModal({ categories, expense, onClose, onSaved }: {
   }
 
   return (
-    <div className="pp-modal-overlay" onClick={onClose}>
-      <div className="pp-modal" onClick={(ev) => ev.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="pp-modal">
         <div className="pp-modal-header">
           <span className="pp-modal-title">Edit Expense</span>
           <button className="pp-dp-close" style={{ position: "static" }} onClick={onClose}>
@@ -81,44 +82,44 @@ function EditExpenseModal({ categories, expense, onClose, onSaved }: {
             {error && <div className="pp-field-error">{error}</div>}
 
             <div className="pp-field">
-              <label className="pp-field-label">Description <span className="pp-required">*</span></label>
-              <input className="pp-input" placeholder="What was this expense for?" value={form.description} onChange={(e) => set("description", e.target.value)} autoFocus />
+              <label className="pp-field-label" htmlFor="description-1">Description <span className="pp-required">*</span></label>
+              <input id="description-1" className="pp-input" placeholder="What was this expense for?" value={form.description} onChange={(e) => set("description", e.target.value)} autoFocus />
             </div>
 
             <div className="pp-row-2">
               <div className="pp-field">
-                <label className="pp-field-label">Category <span className="pp-required">*</span></label>
-                <select className="pp-input" value={form.category_id} onChange={(e) => set("category_id", e.target.value)}>
+                <label className="pp-field-label" htmlFor="category-1">Category <span className="pp-required">*</span></label>
+                <select id="category-1" className="pp-input" value={form.category_id} onChange={(e) => set("category_id", e.target.value)}>
                   {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div className="pp-field">
-                <label className="pp-field-label">Amount (GHS) <span className="pp-required">*</span></label>
-                <input className="pp-input" type="number" placeholder="0.00" value={form.amount} onChange={(e) => set("amount", e.target.value)} />
+                <label className="pp-field-label" htmlFor="amount-ghs-1">Amount (GHS) <span className="pp-required">*</span></label>
+                <input id="amount-ghs-1" className="pp-input" type="number" placeholder="0.00" value={form.amount} onChange={(e) => set("amount", e.target.value)} />
               </div>
             </div>
 
             <div className="pp-row-2">
               <div className="pp-field">
-                <label className="pp-field-label">Payment method <span className="pp-required">*</span></label>
-                <select className="pp-input" value={form.payment_method} onChange={(e) => set("payment_method", e.target.value)}>
+                <label className="pp-field-label" htmlFor="payment-method-1">Payment method <span className="pp-required">*</span></label>
+                <select id="payment-method-1" className="pp-input" value={form.payment_method} onChange={(e) => set("payment_method", e.target.value)}>
                   {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
               </div>
               <div className="pp-field">
-                <label className="pp-field-label">Date <span className="pp-required">*</span></label>
-                <input className="pp-input" type="date" value={form.expense_date} max={new Date().toISOString().split("T")[0]} onChange={(e) => set("expense_date", e.target.value)} />
+                <label className="pp-field-label" htmlFor="date-1">Date <span className="pp-required">*</span></label>
+                <input id="date-1" className="pp-input" type="date" value={form.expense_date} max={new Date().toISOString().split("T")[0]} onChange={(e) => set("expense_date", e.target.value)} />
               </div>
             </div>
 
             <div className="pp-field">
-              <label className="pp-field-label">Linked booking (optional)</label>
-              <input className="pp-input" placeholder="Paste booking ID to attribute this expense to an event" value={form.booking_ref} onChange={(e) => set("booking_ref", e.target.value)} />
+              <label className="pp-field-label" htmlFor="linked-booking-optional-1">Linked booking (optional)</label>
+              <input id="linked-booking-optional-1" className="pp-input" placeholder="Paste booking ID to attribute this expense to an event" value={form.booking_ref} onChange={(e) => set("booking_ref", e.target.value)} />
             </div>
 
             <div className="pp-field">
-              <label className="pp-field-label">Notes (optional)</label>
-              <textarea className="pp-input" rows={2} value={form.notes} onChange={(e) => set("notes", e.target.value)} style={{ resize: "none" }} />
+              <label className="pp-field-label" htmlFor="notes-optional-1">Notes (optional)</label>
+              <textarea id="notes-optional-1" className="pp-input" rows={2} value={form.notes} onChange={(e) => set("notes", e.target.value)} style={{ resize: "none" }} />
             </div>
 
             <div className="pp-field">
@@ -139,7 +140,7 @@ function EditExpenseModal({ categories, expense, onClose, onSaved }: {
           </div>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
 
@@ -269,13 +270,14 @@ export default function ExpensesPage() {
         <div className="pp-search-wrap">
           <SearchIcon />
           <input
-            className="pp-search-input"
+            className="pp-search-input" aria-label="Search"
             placeholder="Search by description, reference, or supplier note"
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
           />
         </div>
         <select
+          aria-label="Category"
           className="pp-period-select"
           value={catFilter}
           onChange={(e) => {
@@ -478,8 +480,8 @@ function AddExpenseModal({
   }
 
   return (
-    <div className="pp-modal-overlay" onClick={onClose}>
-      <div className="pp-modal" onClick={(ev) => ev.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="pp-modal">
         <div className="pp-modal-header">
           <span className="pp-modal-title">Add Expense</span>
           <button className="pp-dp-close" style={{ position: "static" }} onClick={onClose}>
@@ -491,44 +493,44 @@ function AddExpenseModal({
             {error && <div className="pp-field-error">{error}</div>}
 
             <div className="pp-field">
-              <label className="pp-field-label">Description <span className="pp-required">*</span></label>
-              <input className="pp-input" placeholder="What was this expense for?" value={form.description} onChange={(e) => set("description", e.target.value)} autoFocus />
+              <label className="pp-field-label" htmlFor="description-2">Description <span className="pp-required">*</span></label>
+              <input id="description-2" className="pp-input" placeholder="What was this expense for?" value={form.description} onChange={(e) => set("description", e.target.value)} autoFocus />
             </div>
 
             <div className="pp-row-2">
               <div className="pp-field">
-                <label className="pp-field-label">Category <span className="pp-required">*</span></label>
-                <select className="pp-input" value={form.category_id} onChange={(e) => set("category_id", e.target.value)}>
+                <label className="pp-field-label" htmlFor="category-2">Category <span className="pp-required">*</span></label>
+                <select id="category-2" className="pp-input" value={form.category_id} onChange={(e) => set("category_id", e.target.value)}>
                   {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div className="pp-field">
-                <label className="pp-field-label">Amount (GHS) <span className="pp-required">*</span></label>
-                <input className="pp-input" type="number" placeholder="0.00" value={form.amount} onChange={(e) => set("amount", e.target.value)} />
+                <label className="pp-field-label" htmlFor="amount-ghs-2">Amount (GHS) <span className="pp-required">*</span></label>
+                <input id="amount-ghs-2" className="pp-input" type="number" placeholder="0.00" value={form.amount} onChange={(e) => set("amount", e.target.value)} />
               </div>
             </div>
 
             <div className="pp-row-2">
               <div className="pp-field">
-                <label className="pp-field-label">Payment method <span className="pp-required">*</span></label>
-                <select className="pp-input" value={form.payment_method} onChange={(e) => set("payment_method", e.target.value)}>
+                <label className="pp-field-label" htmlFor="payment-method-2">Payment method <span className="pp-required">*</span></label>
+                <select id="payment-method-2" className="pp-input" value={form.payment_method} onChange={(e) => set("payment_method", e.target.value)}>
                   {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
               </div>
               <div className="pp-field">
-                <label className="pp-field-label">Date <span className="pp-required">*</span></label>
-                <input className="pp-input" type="date" value={form.expense_date} max={new Date().toISOString().split("T")[0]} onChange={(e) => set("expense_date", e.target.value)} />
+                <label className="pp-field-label" htmlFor="date-2">Date <span className="pp-required">*</span></label>
+                <input id="date-2" className="pp-input" type="date" value={form.expense_date} max={new Date().toISOString().split("T")[0]} onChange={(e) => set("expense_date", e.target.value)} />
               </div>
             </div>
 
             <div className="pp-field">
-              <label className="pp-field-label">Linked booking (optional)</label>
-              <input className="pp-input" placeholder="Paste booking ID to attribute this expense to an event" value={form.booking_ref} onChange={(e) => set("booking_ref", e.target.value)} />
+              <label className="pp-field-label" htmlFor="linked-booking-optional-2">Linked booking (optional)</label>
+              <input id="linked-booking-optional-2" className="pp-input" placeholder="Paste booking ID to attribute this expense to an event" value={form.booking_ref} onChange={(e) => set("booking_ref", e.target.value)} />
             </div>
 
             <div className="pp-field">
-              <label className="pp-field-label">Notes (optional)</label>
-              <textarea className="pp-input" rows={2} value={form.notes} onChange={(e) => set("notes", e.target.value)} style={{ resize: "none" }} />
+              <label className="pp-field-label" htmlFor="notes-optional-2">Notes (optional)</label>
+              <textarea id="notes-optional-2" className="pp-input" rows={2} value={form.notes} onChange={(e) => set("notes", e.target.value)} style={{ resize: "none" }} />
             </div>
 
             <div className="pp-field">
@@ -549,7 +551,7 @@ function AddExpenseModal({
           </div>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
 

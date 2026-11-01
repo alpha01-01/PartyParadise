@@ -91,10 +91,10 @@ export default function NewContractPage() {
       <div className="pp-card" style={{ padding: 18 }}>
         <div className="pp-row-2">
           <div className="pp-field">
-            <label className="pp-field-label">
+            <label className="pp-field-label" htmlFor="booking-1">
               Booking <span className="pp-required">*</span>
             </label>
-            <select
+            <select id="booking-1"
               className="pp-input"
               value={bookingId}
               onChange={(e) => setBookingId(e.target.value)}
@@ -110,8 +110,8 @@ export default function NewContractPage() {
           </div>
 
           <div className="pp-field">
-            <label className="pp-field-label">Template</label>
-            <select
+            <label className="pp-field-label" htmlFor="template-1">Template</label>
+            <select id="template-1"
               className="pp-input"
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
@@ -129,8 +129,8 @@ export default function NewContractPage() {
 
         <div className="pp-row-2" style={{ marginTop: 12 }}>
           <div className="pp-field">
-            <label className="pp-field-label">Deposit amount (GHS)</label>
-            <input
+            <label className="pp-field-label" htmlFor="deposit-amount-ghs-1">Deposit amount (GHS)</label>
+            <input id="deposit-amount-ghs-1"
               className="pp-input"
               type="number"
               placeholder="Optional"
@@ -141,8 +141,8 @@ export default function NewContractPage() {
             />
           </div>
           <div className="pp-field">
-            <label className="pp-field-label">Special terms</label>
-            <input
+            <label className="pp-field-label" htmlFor="special-terms-1">Special terms</label>
+            <input id="special-terms-1"
               className="pp-input"
               placeholder="Add any extra clauses"
               value={specialTerms}
