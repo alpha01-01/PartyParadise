@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract
+from sqlalchemy import case, func, extract
 from datetime import date
 from uuid import UUID
 from decimal import Decimal
@@ -61,7 +61,7 @@ def dashboard_summary(
     # Outstanding invoices
     outstanding = (
         db.query(func.count(Invoice.id))
-        .filter(Invoice.status.in_(["sent", "partial"]))
+        .filter(Invoice.status.in_(["sent", "partial", "overdue"]))
         .scalar()
     )
 
@@ -69,7 +69,7 @@ def dashboard_summary(
     overdue = (
         db.query(func.count(Invoice.id))
         .filter(
-            Invoice.status.in_(["sent", "partial"]),
+            Invoice.status.in_(["sent", "partial", "overdue"]),
             Invoice.due_date < today_date,
         )
         .scalar()
@@ -106,27 +106,33 @@ def profit_and_loss(
     from app.models.invoicing import Payment
     from app.models.accounting import Expense
 
+    year_start, year_end = date(year, 1, 1), date(year + 1, 1, 1)
+
+    income_by_month = dict(
+        db.query(extract("month", Payment.paid_at), func.sum(Payment.amount))
+        .filter(
+            Payment.paid_at >= year_start,
+            Payment.paid_at < year_end,
+            Payment.status == "confirmed",
+        )
+        .group_by(extract("month", Payment.paid_at))
+        .all()
+    )
+    expenses_by_month = dict(
+        db.query(extract("month", Expense.expense_date), func.sum(Expense.amount))
+        .filter(
+            Expense.expense_date >= year_start,
+            Expense.expense_date < year_end,
+            Expense.status == "confirmed",
+        )
+        .group_by(extract("month", Expense.expense_date))
+        .all()
+    )
+
     results = []
     for month in range(1, 13):
-        income = (
-            db.query(func.sum(Payment.amount))
-            .filter(
-                extract("year", Payment.paid_at) == year,
-                extract("month", Payment.paid_at) == month,
-                Payment.status == "confirmed",
-            )
-            .scalar()
-        ) or Decimal("0")
-
-        expenses = (
-            db.query(func.sum(Expense.amount))
-            .filter(
-                extract("year", Expense.expense_date) == year,
-                extract("month", Expense.expense_date) == month,
-                Expense.status == "confirmed",
-            )
-            .scalar()
-        ) or Decimal("0")
+        income = income_by_month.get(month, Decimal("0"))
+        expenses = expenses_by_month.get(month, Decimal("0"))
 
         results.append({
             "month": month,
@@ -173,7 +179,10 @@ def booking_profitability(
 
     expenses = (
         db.query(func.sum(Expense.amount))
-        .filter(Expense.booking_id == booking_id)
+        .filter(
+            Expense.booking_id == booking_id,
+            Expense.status == "confirmed",
+        )
         .scalar()
     ) or Decimal("0")
 
@@ -215,7 +224,10 @@ def top_booking_profitability(
             Expense.booking_id.label("booking_id"),
             func.coalesce(func.sum(Expense.amount), 0).label("expenses"),
         )
-        .filter(Expense.booking_id != None)
+        .filter(
+            Expense.booking_id != None,
+            Expense.status == "confirmed",
+        )
         .group_by(Expense.booking_id)
         .subquery()
     )
@@ -308,10 +320,10 @@ def staff_attendance_report(
             User.full_name,
             func.count(Shift.id).label("total_shifts"),
             func.sum(
-                func.cast(Attendance.status == "present", func.Integer)
+                case((Attendance.status == "present", 1), else_=0)
             ).label("present"),
             func.sum(
-                func.cast(Attendance.status == "absent", func.Integer)
+                case((Attendance.status == "absent", 1), else_=0)
             ).label("absent"),
         )
         .join(StaffProfile, StaffProfile.user_id == User.id)

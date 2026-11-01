@@ -44,7 +44,10 @@ def download_invoice_pdf(
     items    = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all()
     payments = db.query(Payment).filter(Payment.invoice_id == invoice_id, Payment.status == "confirmed").all()
 
-    pdf_bytes = generate_invoice_pdf(invoice, client, items, payments)
+    try:
+        pdf_bytes = generate_invoice_pdf(invoice, client, items, payments)
+    except OSError as exc:
+        raise HTTPException(status_code=503, detail="PDF generation is not available on this server") from exc
 
     return Response(
         content=pdf_bytes,
@@ -70,7 +73,10 @@ def download_contract_pdf(
     if not contract:
         raise HTTPException(status_code=404, detail="Contract not found")
 
-    pdf_bytes = generate_contract_pdf(contract)
+    try:
+        pdf_bytes = generate_contract_pdf(contract)
+    except OSError as exc:
+        raise HTTPException(status_code=503, detail="PDF generation is not available on this server") from exc
 
     return Response(
         content=pdf_bytes,

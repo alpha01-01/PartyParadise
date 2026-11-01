@@ -2010,3 +2010,94 @@
       flex-direction: column;
     }
   }
+
+/* ── Modals ── */
+.pp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pp-modal {
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-border2);
+  border-radius: var(--pp-radius);
+  width: 400px;
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.pp-modal-header {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--pp-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pp-modal-title {
+  font-family: var(--pp-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--pp-text);
+  letter-spacing: -0.01em;
+}
+
+.pp-modal-invoice-summary {
+  padding: 12px 18px;
+  background: rgba(245, 200, 66, 0.06);
+  border-bottom: 1px solid rgba(245, 200, 66, 0.12);
+}
+
+.pp-modal-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pp-modal-footer {
+  padding: 14px 18px;
+  border-top: 1px solid var(--pp-border);
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Page tabs ── */
+.pp-page-tabs {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--pp-border);
+  background: var(--pp-surface);
+  padding: 0 22px;
+  flex-shrink: 0;
+}
+
+.pp-page-tab {
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--pp-text-3);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all var(--pp-transition);
+  margin-bottom: -1px;
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  white-space: nowrap;
+}
+
+.pp-page-tab:hover { color: var(--pp-text-2); }
+
+.pp-page-tab--active {
+  color: var(--pp-gold);
+  border-bottom-color: var(--pp-gold);
+  font-weight: 500;
+}

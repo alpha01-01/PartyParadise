@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { useEffect } from "react";
-import { useAuthStore } from "@/lib/auth";
 import { getRefreshToken, setRefreshToken } from "@/lib/api";
 
 /**
@@ -18,18 +17,11 @@ import { getRefreshToken, setRefreshToken } from "@/lib/api";
  * Zustand auth state (which only stores the user object).
  */
 export function AuthHydrator() {
-  const hydrate = useAuthStore((s) => s._hydrateTokens);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-
   useEffect(() => {
     const refreshToken = getRefreshToken();
     if (refreshToken) {
       // Ensure the cookie exists for middleware checks on next navigation.
       setRefreshToken(refreshToken);
-    }
-    if (isAuthenticated || refreshToken) {
-      // Try to restore session from refresh token
-      hydrate();
     }
   }, []);
 

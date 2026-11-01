@@ -1,4 +1,4 @@
-﻿# PartyParadise â€” Event Management System
+﻿# PartyParadise — Event Management System
 
 Full-stack event management platform for PartyParadise, Accra Ghana.
 Manages bookings, clients, invoices, inventory, staff, and contracts.
@@ -23,33 +23,33 @@ Manages bookings, clients, invoices, inventory, staff, and contracts.
 
 ```
 partyparadise/
-â”œâ”€â”€ api/                    FastAPI backend
-â”‚   â”œâ”€â”€ app/
-â”‚   â”‚   â”œâ”€â”€ main.py
-â”‚   â”‚   â”œâ”€â”€ config.py
-â”‚   â”‚   â”œâ”€â”€ models/         SQLAlchemy ORM (9 modules, 47 tables)
-â”‚   â”‚   â”œâ”€â”€ routers/        API endpoints
-â”‚   â”‚   â”œâ”€â”€ utils/
-â”‚   â”‚   â””â”€â”€ services/
-â”‚   â”œâ”€â”€ migrations/         Alembic migrations
-â”‚   â”œâ”€â”€ tests/
-â”‚   â”œâ”€â”€ requirements.txt
-â”‚   â””â”€â”€ Dockerfile
-â”œâ”€â”€ web/                    Next.js frontend
-â”‚   â”œâ”€â”€ app/
-â”‚   â”‚   â”œâ”€â”€ (auth)/         Login pages
-â”‚   â”‚   â”œâ”€â”€ (dashboard)/    Staff dashboard
-â”‚   â”‚   â”œâ”€â”€ contracts/      Public contract signing
-â”‚   â”‚   â””â”€â”€ portal/         Client portal
-â”‚   â”œâ”€â”€ components/
-â”‚   â”œâ”€â”€ hooks/
-â”‚   â”œâ”€â”€ lib/                API client, auth store, types, utils
-â”‚   â”œâ”€â”€ styles/
-â”‚   â”œâ”€â”€ package.json
-â”‚   â””â”€â”€ Dockerfile
-â”œâ”€â”€ docker-compose.yml
-â”œâ”€â”€ .env.example
-â””â”€â”€ README.md
+├── api/                    FastAPI backend
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── models/         SQLAlchemy ORM (9 modules, 47 tables)
+│   │   ├── routers/        API endpoints
+│   │   ├── utils/
+│   │   └── services/
+│   ├── migrations/         Alembic migrations
+│   ├── tests/
+│   ├── requirements.txt
+│   └── Dockerfile
+├── web/                    Next.js frontend
+│   ├── app/
+│   │   ├── (auth)/         Login pages
+│   │   ├── (dashboard)/    Staff dashboard
+│   │   ├── contracts/      Public contract signing
+│   │   └── portal/         Client portal
+│   ├── components/
+│   ├── hooks/
+│   ├── lib/                API client, auth store, types, utils
+│   ├── styles/
+│   ├── package.json
+│   └── Dockerfile
+├── docker-compose.yml
+├── .env.example
+└── README.md
 ```
 
 ---
@@ -65,10 +65,7 @@ cp .env.example .env
 docker compose up db -d
 
 # 3. Run migrations
-cd api
-pip install -r requirements.txt
-alembic upgrade head
-cd ..
+docker compose run --rm api alembic upgrade head
 
 # 4. Start everything
 docker compose up
@@ -92,11 +89,11 @@ python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
 # Set up environment
 cp ../.env.example .env
-# Edit .env â€” set DATABASE_URL to your Postgres instance
+# Edit .env — set DATABASE_URL to your Postgres instance
 
 # Run migrations
 alembic upgrade head
@@ -115,7 +112,7 @@ npm install
 
 # Set up environment
 cp ../.env.example .env.local
-# Edit .env.local â€” set NEXT_PUBLIC_API_URL=http://localhost:8000
+# Edit .env.local — set NEXT_PUBLIC_API_URL=http://localhost:8000
 
 # Start dev server
 npm run dev
@@ -130,33 +127,33 @@ See `.env.example` for the full list. Key ones:
 | Variable | Where to get it |
 |----------|----------------|
 | `DATABASE_URL` | Your Postgres connection string |
-| `SECRET_KEY` | Any random 64-char string (`openssl rand -hex 32`) |
-| `PAYSTACK_SECRET_KEY` | Paystack Dashboard â†’ Settings â†’ API Keys |
-| `PAYSTACK_PUBLIC_KEY` | Paystack Dashboard â†’ Settings â†’ API Keys |
-| `SUPABASE_URL` | Supabase Dashboard â†’ Settings â†’ API |
-| `SUPABASE_SERVICE_KEY` | Supabase Dashboard â†’ Settings â†’ API |
-| `SENDGRID_API_KEY` | SendGrid â†’ Settings â†’ API Keys |
+| `SECRET_KEY` | Required. Random string of at least 32 characters (`openssl rand -hex 32`) |
+| `INTERNAL_WEBHOOK_SECRET` | Random string (`openssl rand -hex 32`). Set the same value for the API and web app, or Paystack payments are rejected |
+| `PAYSTACK_SECRET_KEY` | Paystack Dashboard → Settings → API Keys |
+| `PAYSTACK_PUBLIC_KEY` | Paystack Dashboard → Settings → API Keys |
+| `SUPABASE_URL` | Supabase Dashboard → Settings → API |
+| `SUPABASE_SERVICE_KEY` | Supabase Dashboard → Settings → API |
+| `SENDGRID_API_KEY` | SendGrid → Settings → API Keys |
 
 ---
 
-## Default login
+## First login
 
-After running migrations (which seed default roles and an admin user):
+Migrations seed roles and permissions but not users. After migrating, run this from `api/`:
 
+```bash
+python scripts/create_admin.py
 ```
-Email:    admin@partyparadise.com
-Password: changeme123
-```
 
-**Change this immediately in production.**
+`create_admin.py` prints a one-time random password.
 
 ---
 
 ## Paystack webhook setup
 
-1. Go to Paystack Dashboard â†’ Settings â†’ API Keys & Webhooks
-2. Set webhook URL to: `https://yourdomain.com/webhooks/paystack`
-3. Ensure `PAYSTACK_SECRET_KEY` in your `.env` matches your Paystack secret
+1. Go to Paystack Dashboard → Settings → API Keys & Webhooks
+2. Set webhook URL to: `https://yourdomain.com/api/webhooks/paystack`
+3. Set `PAYSTACK_SECRET_KEY` for the API and web app, `INTERNAL_API_URL` for the web app, and the same `INTERNAL_WEBHOOK_SECRET` for both
 
 When charging clients, pass `metadata.invoice_id` in the Paystack charge so the webhook can match the payment to the correct invoice.
 
@@ -195,9 +192,35 @@ Available in development only (`ENV=development`).
 cd api
 pytest tests/ -v
 
-# With integration tests (requires running Postgres)
-INTEGRATION_TESTS=1 pytest tests/ -v
+# Include the database tests. This database is wiped on every run, so its name must contain "test".
+TEST_DATABASE_URL=postgresql://user:password@localhost:5432/partyparadise_test pytest tests/ -v
 ```
+
+---
+
+## Production
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+```
+
+The stack runs migrations before the API starts and binds to `127.0.0.1`, so put a TLS proxy in front of it. Set `ENV=production`; API docs only appear in development.
+
+## Backups
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T db pg_dump -U postgres partyparadise > backup.sql
+```
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T db psql -U postgres partyparadise < backup.sql
+```
+
+Schedule the backup daily, keep copies off the server, and test a restore on a spare database.
+
+## PDFs on Windows
+
+PDF generation uses WeasyPrint, which needs the Pango libraries. Docker images include them. On Windows, install MSYS2 and its `mingw-w64-x86_64-pango` package, then add `C:\msys64\mingw64\bin` to `PATH`.
 
 ## Rollout Readiness
 

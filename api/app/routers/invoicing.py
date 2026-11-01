@@ -1,17 +1,24 @@
+import logging
+
 from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import extract
-from pydantic import BaseModel
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import extract, func, or_
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List
 from uuid import UUID
 from datetime import date, datetime
 from decimal import Decimal
 
 from app.database import get_db
+from app.schemas.types import Money
 from app.dependencies import require_permission
+from app.services.payments import get_invoice_for_update, record_invoice_payment
+from app.utils.audit import record_audit
 from app.utils.references import generate_reference
+from app.utils.shop_sales import display_notes
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # ============================================================
 # Schemas
@@ -19,26 +26,34 @@ router = APIRouter()
 
 class InvoiceItemSchema(BaseModel):
     description: str
-    quantity: int = 1
-    unit_price: Decimal
-    total_price: Decimal
+    quantity: int = Field(1, ge=1)
+    unit_price: Money = Field(..., ge=0)
+    total_price: Optional[Money] = None
     booking_service_id: Optional[UUID] = None
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def line_total_must_match(self):
+        expected = self.unit_price * self.quantity
+        if self.total_price is not None and self.total_price != expected:
+            raise ValueError(f"Line total for '{self.description}' should be {expected}")
+        self.total_price = expected
+        return self
 
 
 class CreateInvoiceRequest(BaseModel):
     client_id: UUID
     booking_id: Optional[UUID] = None
-    items: List[InvoiceItemSchema]
-    discount_amount: Decimal = Decimal("0")
-    tax_amount: Decimal = Decimal("0")
+    items: List[InvoiceItemSchema] = Field(..., min_length=1)
+    discount_amount: Money = Field(Decimal("0"), ge=0)
+    tax_amount: Money = Field(Decimal("0"), ge=0)
     due_date: Optional[date] = None
     notes: Optional[str] = None
 
 
 class RecordPaymentRequest(BaseModel):
-    amount: Decimal
+    amount: Money = Field(..., gt=0)
     method: str
     paid_at: date
     provider_ref: Optional[str] = None
@@ -51,12 +66,12 @@ class InvoiceResponse(BaseModel):
     booking_id: Optional[UUID]
     reference: str
     status: str
-    subtotal: Decimal
-    discount_amount: Decimal
-    tax_amount: Decimal
-    total_amount: Decimal
-    amount_paid: Decimal
-    amount_due: Decimal
+    subtotal: Money
+    discount_amount: Money
+    tax_amount: Money
+    total_amount: Money
+    amount_paid: Money
+    amount_due: Money
     issued_at: Optional[date]
     due_date: Optional[date]
     created_at: datetime
@@ -88,14 +103,14 @@ class InvoiceResponse(BaseModel):
             due_date=inv.due_date,
             created_at=inv.created_at,
             client_name=client_name,
-            notes=inv.notes,
+            notes=display_notes(inv.notes),
         )
 
 
 class PaymentResponse(BaseModel):
     id: UUID
     invoice_id: UUID
-    amount: Decimal
+    amount: Money
     method: str
     status: str
     provider_ref: Optional[str]
@@ -109,8 +124,8 @@ class InvoiceItemResponse(BaseModel):
     id: UUID
     description: str
     quantity: int
-    unit_price: Decimal
-    total_price: Decimal
+    unit_price: Money
+    total_price: Money
     booking_service_id: Optional[UUID] = None
 
     model_config = {"from_attributes": True}
@@ -123,27 +138,6 @@ class InvoiceDetailResponse(InvoiceResponse):
 # ============================================================
 # Helpers
 # ============================================================
-
-def update_invoice_after_payment(db: Session, invoice):
-    """Recalculate amount_paid and update invoice status."""
-    from app.models.invoicing import Payment
-    from sqlalchemy import func
-
-    total_paid = (
-        db.query(func.sum(Payment.amount))
-        .filter(Payment.invoice_id == invoice.id, Payment.status == "confirmed")
-        .scalar()
-    ) or Decimal("0")
-
-    invoice.amount_paid = total_paid
-
-    if total_paid >= invoice.total_amount:
-        invoice.status = "paid"
-    elif total_paid > 0:
-        invoice.status = "partial"
-
-    db.commit()
-
 
 def notify_client_invoice(db: Session, invoice):
     """Fire portal notification if client has a portal account."""
@@ -166,11 +160,61 @@ def notify_client_invoice(db: Session, invoice):
 # Routes
 # ============================================================
 
+def mark_overdue_invoices(db: Session) -> None:
+    from app.models.invoicing import Invoice
+
+    updated = (
+        db.query(Invoice)
+        .filter(Invoice.due_date < date.today(), Invoice.status.in_(["sent", "partial"]))
+        .update({Invoice.status: "overdue"}, synchronize_session=False)
+    )
+    if updated:
+        db.commit()
+
+
+@router.get("/invoices/stats")
+def invoice_stats(
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("invoices:read")),
+):
+    """Totals across every invoice, not just the page on screen."""
+    from app.models.invoicing import Invoice, Payment
+
+    mark_overdue_invoices(db)
+
+    def open_totals(*statuses):
+        count, due = (
+            db.query(func.count(Invoice.id), func.sum(Invoice.total_amount - Invoice.amount_paid))
+            .filter(Invoice.status.in_(statuses))
+            .one()
+        )
+        return count, float(due or 0)
+
+    outstanding_count, outstanding = open_totals("sent", "partial", "overdue")
+    overdue_count, overdue = open_totals("overdue")
+    month_start = date.today().replace(day=1)
+    collected = (
+        db.query(func.sum(Payment.amount))
+        .filter(Payment.status == "confirmed", Payment.paid_at >= month_start)
+        .scalar()
+    )
+
+    return {
+        "outstanding": outstanding,
+        "outstanding_count": outstanding_count,
+        "overdue": overdue,
+        "overdue_count": overdue_count,
+        "collected_this_month": float(collected or 0),
+        "drafts": db.query(Invoice).filter(Invoice.status == "draft").count(),
+    }
+
+
 @router.get("/invoices")
 def list_invoices(
     status_filter: str = Query(None, alias="status"),
     client_id: UUID = Query(None),
     overdue: bool = Query(False),
+    search: str = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -178,9 +222,20 @@ def list_invoices(
 ):
     from app.models.invoicing import Invoice
     from app.utils.pagination import paginate
+    from app.models.clients import Client
     from datetime import date as today_date
 
-    query = db.query(Invoice)
+    mark_overdue_invoices(db)
+
+    query = db.query(Invoice).options(selectinload(Invoice.client))
+    if search:
+        needle = f"%{search.strip()}%"
+        query = query.join(Client, Client.id == Invoice.client_id).filter(
+            or_(
+                Invoice.reference.ilike(needle),
+                (Client.first_name + " " + Client.last_name).ilike(needle),
+            )
+        )
     if status_filter:
         query = query.filter(Invoice.status == status_filter)
     if client_id:
@@ -188,7 +243,7 @@ def list_invoices(
     if overdue:
         query = query.filter(
             Invoice.due_date < today_date.today(),
-            Invoice.status.in_(["sent", "partial"]),
+            Invoice.status.in_(["sent", "partial", "overdue"]),
         )
 
     result = paginate(query.order_by(Invoice.created_at.desc()), page, page_size)
@@ -223,6 +278,8 @@ def create_invoice(
 
     subtotal = sum(item.total_price for item in data.items)
     total = subtotal - data.discount_amount + data.tax_amount
+    if total < 0:
+        raise HTTPException(status_code=422, detail="Discount cannot be more than the invoice total")
 
     invoice = Invoice(
         client_id=data.client_id,
@@ -258,51 +315,70 @@ def invoice_from_booking(
     """Auto-generate invoice from all booking_services on a booking."""
     from app.models.bookings import Booking, BookingService
     from app.models.invoicing import Invoice, InvoiceItem
+    import logging
 
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
-    if not booking:
-        raise HTTPException(status_code=404, detail="Booking not found")
+    logger = logging.getLogger(__name__)
 
-    services = db.query(BookingService).filter(BookingService.booking_id == booking_id).all()
-    if not services:
-        raise HTTPException(status_code=400, detail="Booking has no services to invoice")
+    try:
+        booking = db.query(Booking).filter(Booking.id == booking_id).first()
+        if not booking:
+            raise HTTPException(status_code=404, detail="Booking not found")
 
-    subtotal = sum(s.price for s in services)
-    invoice = Invoice(
-        client_id=booking.client_id,
-        booking_id=booking_id,
-        created_by=current_user.id,
-        reference=generate_reference("INV", Invoice, db),
-        status="draft",
-        subtotal=subtotal,
-        discount_amount=Decimal("0"),
-        tax_amount=Decimal("0"),
-        total_amount=subtotal,
-        amount_paid=Decimal("0"),
-    )
-    db.add(invoice)
-    db.flush()
+        existing_invoice = (
+            db.query(Invoice)
+            .filter(Invoice.booking_id == booking_id)
+            .order_by(Invoice.created_at.desc())
+            .first()
+        )
+        if existing_invoice:
+            return InvoiceResponse.from_orm(existing_invoice)
 
-    for svc in services:
-        db.add(InvoiceItem(
-            invoice_id=invoice.id,
-            booking_service_id=svc.id,
-            description=svc.service,
-            quantity=1,
-            unit_price=svc.price,
-            total_price=svc.price,
-        ))
+        services = db.query(BookingService).filter(BookingService.booking_id == booking_id).all()
+        if not services:
+            raise HTTPException(status_code=400, detail="Booking has no services to invoice")
 
-    db.commit()
-    db.refresh(invoice)
-    return InvoiceResponse.from_orm(invoice)
+        subtotal = sum((s.price or Decimal("0")) for s in services)
+        invoice = Invoice(
+            client_id=booking.client_id,
+            booking_id=booking_id,
+            created_by=current_user.id,
+            reference=generate_reference("INV", Invoice, db),
+            status="draft",
+            subtotal=subtotal,
+            discount_amount=Decimal("0"),
+            tax_amount=Decimal("0"),
+            total_amount=subtotal,
+            amount_paid=Decimal("0"),
+        )
+        db.add(invoice)
+        db.flush()
+
+        for svc in services:
+            db.add(InvoiceItem(
+                invoice_id=invoice.id,
+                description=svc.service,
+                quantity=1,
+                unit_price=svc.price,
+                total_price=svc.price,
+            ))
+
+        db.commit()
+        db.refresh(invoice)
+        return InvoiceResponse.from_orm(invoice)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Failed to generate invoice from booking %s", booking_id)
+        raise HTTPException(status_code=500, detail="Could not generate the invoice")
 
 
 @router.delete("/invoices/{invoice_id}", status_code=200)
 def delete_invoice(
     invoice_id: UUID,
     db: Session = Depends(get_db),
-    _=Depends(require_permission("invoices:delete")),
+    current_user=Depends(require_permission("invoices:delete")),
 ):
     from app.models.invoicing import Invoice, Payment
 
@@ -318,7 +394,17 @@ def delete_invoice(
         raise HTTPException(status_code=400, detail="Cannot delete invoice with payments")
 
     db.delete(invoice)
+
+    record_audit(
+        db,
+        user_id=current_user.id,
+        action="delete",
+        module="invoices",
+        entity_type="invoice",
+        entity_id=invoice.id,
+    )
     db.commit()
+
     return {"message": "Invoice deleted"}
 
 
@@ -334,14 +420,19 @@ def send_invoice(
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    if invoice.status in ("paid", "cancelled"):
+        raise HTTPException(status_code=400, detail=f"Cannot send a {invoice.status} invoice")
 
-    invoice.status = "sent"
-    invoice.issued_at = today_date.today()
-    db.commit()
+    # Re-sending an open invoice repeats the email and keeps its payment state
+    if invoice.status == "draft":
+        invoice.status = "sent"
+        invoice.issued_at = today_date.today()
+        db.commit()
 
     notify_client_invoice(db, invoice)
 
-    # Send email with PDF attachment
+    # Send email, with the PDF attached when it can be generated
+    email_sent = False
     try:
         from app.models.clients import Client
         from app.models.invoicing import InvoiceItem, Payment as Pmt
@@ -351,13 +442,16 @@ def send_invoice(
         items    = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all()
         payments = db.query(Pmt).filter(Pmt.invoice_id == invoice_id, Pmt.status == "confirmed").all()
         if client and client.email:
-            pdf_bytes = generate_invoice_pdf(invoice, client, items, payments)
-            send_invoice_email(invoice, client, pdf_bytes=pdf_bytes)
+            try:
+                pdf_bytes = generate_invoice_pdf(invoice, client, items, payments)
+            except Exception:
+                logger.exception("Could not generate PDF for invoice %s", invoice.reference)
+                pdf_bytes = None
+            email_sent = send_invoice_email(invoice, client, pdf_bytes=pdf_bytes)
     except Exception as exc:
-        import logging
-        logging.getLogger(__name__).exception("Failed to send invoice email: %s", exc)
+        logger.exception("Failed to send invoice email: %s", exc)
 
-    return InvoiceResponse.from_orm(invoice)
+    return {**InvoiceResponse.from_orm(invoice).model_dump(mode="json"), "email_sent": email_sent}
 
 
 @router.post("/invoices/{invoice_id}/payments", status_code=201)
@@ -367,52 +461,21 @@ def record_payment(
     db: Session = Depends(get_db),
     current_user=Depends(require_permission("invoices:update")),
 ):
-    from app.models.invoicing import Invoice, Payment
-    from app.utils.references import generate_reference
-
-    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    invoice = get_invoice_for_update(db, invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-    payment = Payment(
-        invoice_id=invoice_id,
-        received_by=current_user.id,
-        reference=generate_reference("PAY", Payment, db),
+    payment = record_invoice_payment(
+        db,
+        invoice,
         amount=data.amount,
         method=data.method,
-        status="confirmed",
-        provider_ref=data.provider_ref,
         paid_at=data.paid_at,
+        source="staff",
+        received_by=current_user.id,
+        provider_ref=data.provider_ref,
         notes=data.notes,
     )
-    db.add(payment)
-    db.flush()
-
-    update_invoice_after_payment(db, invoice)
-
-    # Auto-create journal entry
-    from app.models.accounting import JournalEntry
-    db.add(JournalEntry(
-        created_by=current_user.id,
-        type="income",
-        description=f"Payment for invoice {invoice.reference}",
-        amount=data.amount,
-        source_type="payment",
-        source_id=payment.id,
-        entry_date=data.paid_at,
-    ))
-
-    # Notify client
-    from app.models.portal import ClientPortalAccount, PortalNotification
-    account = db.query(ClientPortalAccount).filter_by(client_id=invoice.client_id, is_active=True).first()
-    if account:
-        db.add(PortalNotification(
-            portal_account_id=account.id,
-            type="payment_received",
-            title="Payment Received",
-            message=f"We received your payment of GHS {data.amount:,.2f} for {invoice.reference}.",
-        ))
-
     db.commit()
     db.refresh(payment)
 

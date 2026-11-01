@@ -9,7 +9,7 @@ import { useContracts } from "@/hooks";
 import type { ContractStatus } from "@/lib/types";
 import { downloadCsv } from "@/lib/export";
 
-// â”€â”€â”€ Mock data (replace with useContracts hook) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Mock data (replace with useContracts hook) ───────────────
 
 const STATUS_BADGE: Record<ContractStatus, string> = {
   draft:     "pp-badge-neutral",
@@ -35,9 +35,12 @@ export default function ContractsPage() {
   const {
     contracts,
     total,
+    page,
+    totalPages,
     loading,
     error,
     updateFilters,
+    goToPage,
     refresh,
   } = useContracts({ page_size: 20, status: "all" });
 
@@ -59,7 +62,10 @@ export default function ContractsPage() {
   async function handleSend(contractId: string) {
     setSending(contractId);
     try {
-      await api.patch(`/contracts/${contractId}/send`);
+      const { data } = await api.patch(`/contracts/${contractId}/send`);
+      if (!data.email_sent) {
+        window.prompt("The email was not delivered. Copy this signing link for the client:", data.signing_url);
+      }
       refresh();
     } catch (err) {
       console.error(normaliseError(err).message);
@@ -184,7 +190,7 @@ export default function ContractsPage() {
                   <td style={{ fontWeight: 500, color: "var(--pp-text)" }}>{c.client_name}</td>
                   <td style={{ fontSize: 11.5, color: "var(--pp-text-3)" }}>
                     <Link href={`/bookings/${c.booking_id}`} style={{ color: "var(--pp-text-2)", textDecoration: "none" }}>
-                      View booking â†’
+                      View booking →
                     </Link>
                   </td>
                   <td style={{ fontWeight: 500, color: "var(--pp-text)" }}>
@@ -196,7 +202,7 @@ export default function ContractsPage() {
                     </span>
                   </td>
                   <td style={{ fontSize: 11.5, color: c.signed_at ? "var(--pp-green)" : "var(--pp-text-3)" }}>
-                    {c.signed_at ? formatDate(c.signed_at, "short") : "â€”"}
+                    {c.signed_at ? formatDate(c.signed_at, "short") : "—"}
                   </td>
                   <td style={{ fontSize: 11.5, color: "var(--pp-text-3)" }}>
                     {formatDate(c.created_at, "short")}
@@ -227,6 +233,12 @@ export default function ContractsPage() {
         </table>
         <div className="pp-pagination">
           <span>Showing {filtered.length} of {total} contracts</span>
+          {totalPages > 1 && (
+            <div className="pp-pg-btns">
+              <button className="pp-pg-btn" onClick={() => goToPage(page - 1)} disabled={page <= 1}>Prev</button>
+              <button className="pp-pg-btn" onClick={() => goToPage(page + 1)} disabled={page >= totalPages}>Next</button>
+            </div>
+          )}
         </div>
       </div>
     </>
@@ -257,7 +269,7 @@ function ContractPdfBtn({ contractId, reference }: { contractId: string; referen
       disabled={loading}
       onClick={(e) => { e.stopPropagation(); download(`/pdfs/contracts/${contractId}`, `Contract-${reference}.pdf`); }}
     >
-      {loading ? <span style={{ fontSize: 9, color: "var(--pp-gold)" }}>â€¦</span> : <DownloadIcon />}
+      {loading ? <span style={{ fontSize: 9, color: "var(--pp-gold)" }}>…</span> : <DownloadIcon />}
     </button>
   );
 }

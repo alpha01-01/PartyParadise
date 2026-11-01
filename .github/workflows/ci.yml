@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: partyparadise
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: partyparadise_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U partyparadise"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://partyparadise:ci-only-password@localhost:5432/partyparadise_test
+      TEST_DATABASE_URL: postgresql://partyparadise:ci-only-password@localhost:5432/partyparadise_test
+      SECRET_KEY: ci-only-signing-key-not-used-anywhere-else
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      # Node runs the relay's signing code in the webhook contract test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: sudo apt-get update && sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit --incremental false
+      - run: npm run lint
+      - run: npm run build

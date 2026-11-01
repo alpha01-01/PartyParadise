@@ -1,13 +1,17 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Literal, Optional
 from uuid import UUID
 from datetime import date
 from decimal import Decimal
 
 from app.database import get_db
+from app.schemas.types import Money
 from app.dependencies import require_permission
+from app.services.payments import ensure_period_open
+from app.utils.audit import record_audit
+from app.utils.references import generate_reference
 
 router = APIRouter()
 
@@ -17,7 +21,7 @@ router = APIRouter()
 class CreateExpenseRequest(BaseModel):
     category_id: UUID
     description: str
-    amount: Decimal
+    amount: Money = Field(..., gt=0)
     payment_method: str
     expense_date: date
     booking_id: Optional[UUID] = None
@@ -29,14 +33,14 @@ class CreateExpenseRequest(BaseModel):
 class UpdateExpenseRequest(BaseModel):
     category_id: Optional[UUID] = None
     description: Optional[str] = None
-    amount: Optional[Decimal] = None
+    amount: Optional[Money] = Field(None, gt=0)
     payment_method: Optional[str] = None
     expense_date: Optional[date] = None
     booking_id: Optional[UUID] = None
     supplier_id: Optional[UUID] = None
     receipt_url: Optional[str] = None
     notes: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[Literal["pending", "confirmed", "voided"]] = None
 
 
 # ─── Expense categories ───────────────────────────────────────
@@ -72,7 +76,7 @@ def list_expenses(
     from app.models.accounting import Expense
     from app.utils.pagination import paginate
 
-    query = db.query(Expense)
+    query = db.query(Expense).filter(Expense.status != "voided")
 
     if category_id:
         query = query.filter(Expense.category_id == category_id)
@@ -86,6 +90,30 @@ def list_expenses(
         query = query.filter(Expense.description.ilike(f"%{search}%"))
 
     return paginate(query.order_by(Expense.expense_date.desc()), page, page_size)
+
+
+def _void_expense(db: Session, expense, user) -> None:
+    """Voided expenses leave the ledger. The audit row keeps what was removed."""
+    from app.models.accounting import JournalEntry
+
+    expense.status = "voided"
+    (
+        db.query(JournalEntry)
+        .filter(
+            JournalEntry.source_type == "expense",
+            JournalEntry.source_id == expense.id,
+        )
+        .delete(synchronize_session=False)
+    )
+    record_audit(
+        db,
+        user_id=user.id,
+        action="void",
+        module="accounting",
+        entity_type="expense",
+        entity_id=expense.id,
+        changes={"amount": expense.amount, "description": expense.description},
+    )
 
 
 @router.get("/expenses/{expense_id}")
@@ -110,8 +138,10 @@ def create_expense(
 ):
     from app.models.accounting import Expense, JournalEntry
 
+    period = ensure_period_open(db, data.expense_date)
     expense = Expense(
         recorded_by=current_user.id,
+        reference=generate_reference("EXP", Expense, db),
         **data.model_dump(exclude_none=True),
     )
     db.add(expense)
@@ -119,6 +149,7 @@ def create_expense(
 
     # Auto-create journal entry for every confirmed expense
     db.add(JournalEntry(
+        period_id=period.id if period else None,
         created_by=current_user.id,
         type="expense",
         description=expense.description,
@@ -138,16 +169,50 @@ def update_expense(
     expense_id: UUID,
     data: UpdateExpenseRequest,
     db: Session = Depends(get_db),
-    _=Depends(require_permission("accounting:update")),
+    current_user=Depends(require_permission("accounting:update")),
 ):
-    from app.models.accounting import Expense
+    from app.models.accounting import Expense, JournalEntry
 
     expense = db.query(Expense).filter(Expense.id == expense_id).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
+    if expense.status == "voided":
+        raise HTTPException(status_code=400, detail="Voided expenses cannot be edited")
+    ensure_period_open(db, expense.expense_date)
+    if data.expense_date:
+        ensure_period_open(db, data.expense_date)
 
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(expense, field, value)
+
+    if data.status == "voided":
+        _void_expense(db, expense, current_user)
+        db.commit()
+        db.refresh(expense)
+        return expense
+
+    journal = (
+        db.query(JournalEntry)
+        .filter(
+            JournalEntry.source_type == "expense",
+            JournalEntry.source_id == expense.id,
+        )
+        .first()
+    )
+    if journal:
+        journal.description = expense.description
+        journal.amount = expense.amount
+        journal.entry_date = expense.expense_date
+    elif expense.status == "confirmed":
+        db.add(JournalEntry(
+            created_by=expense.recorded_by,
+            type="expense",
+            description=expense.description,
+            amount=expense.amount,
+            source_type="expense",
+            source_id=expense.id,
+            entry_date=expense.expense_date,
+        ))
 
     db.commit()
     db.refresh(expense)
@@ -158,16 +223,16 @@ def update_expense(
 def delete_expense(
     expense_id: UUID,
     db: Session = Depends(get_db),
-    _=Depends(require_permission("accounting:delete")),
+    current_user=Depends(require_permission("accounting:delete")),
 ):
     from app.models.accounting import Expense
 
     expense = db.query(Expense).filter(Expense.id == expense_id).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
+    ensure_period_open(db, expense.expense_date)
 
-    # Soft delete: mark as voided rather than removing
-    expense.status = "voided"
+    _void_expense(db, expense, current_user)
     db.commit()
 
 

@@ -1,276 +1,193 @@
-"""
-tests/test_webhooks.py
-─────────────────────────────────────────────────────────────────
-Unit tests for the Paystack webhook handler.
-
-Run with:
-    pytest tests/test_webhooks.py -v
-
-These tests use pytest-asyncio and httpx's AsyncClient against
-a real (test) FastAPI app with a test database.
-
-For local runs without a real DB, the db-dependent tests use
-mocking so they can pass without Postgres running.
-"""
-
 import hashlib
 import hmac
-import json
+import time
 import uuid
-from datetime import date
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
 
+from app.database import get_db
 from app.main import app
-from app.config import settings
+from app.routers import webhooks
 
 
-# ─── Helpers ──────────────────────────────────────────────────
-def _sign(payload: dict, secret: str = None) -> tuple[bytes, str]:
-    """Return (raw_body_bytes, x-paystack-signature)."""
-    secret = secret or settings.PAYSTACK_SECRET_KEY or "test-secret"
-    raw = json.dumps(payload, separators=(",", ":")).encode()
-    sig = hmac.new(secret.encode(), raw, hashlib.sha512).hexdigest()
-    return raw, sig
+class QueryStub:
+    def __init__(self, value):
+        self.value = value
+
+    def filter(self, *args, **kwargs):
+        return self
+
+    def with_for_update(self):
+        return self
+
+    def order_by(self, *args, **kwargs):
+        return self
+
+    def first(self):
+        return self.value
 
 
-def _charge_success_payload(
-    invoice_id: str = None,
-    amount_kobo: int = 480000,       # GHS 4,800.00
-    reference: str = None,
-    channel: str = "card",
-) -> dict:
-    """Build a minimal charge.success Paystack payload."""
+class FakeDB:
+    def __init__(
+        self,
+        *,
+        invoice=None,
+        duplicate_payment=None,
+        open_period=None,
+        portal_account=None,
+    ):
+        self.invoice = invoice
+        self.duplicate_payment = duplicate_payment
+        self.open_period = open_period
+        self.portal_account = portal_account
+        self.added = []
+        self.committed = False
+        self.refreshed = []
+
+    def query(self, model):
+        if model is webhooks.Invoice:
+            return QueryStub(self.invoice)
+        if model is webhooks.Payment:
+            return QueryStub(self.duplicate_payment)
+        if model is webhooks.AccountPeriod:
+            return QueryStub(self.open_period)
+        if model is webhooks.ClientPortalAccount:
+            return QueryStub(self.portal_account)
+        return QueryStub(None)
+
+    def add(self, value):
+        self.added.append(value)
+
+    def commit(self):
+        self.committed = True
+
+    def refresh(self, value):
+        self.refreshed.append(value)
+
+
+def make_invoice(amount_paid: str = "0.00", total_amount: str = "4800.00"):
+    return SimpleNamespace(
+        id=uuid.uuid4(),
+        reference="INV-001",
+        total_amount=Decimal(total_amount),
+        amount_paid=Decimal(amount_paid),
+        status="sent",
+        client_id=uuid.uuid4(),
+    )
+
+
+def make_client(db: FakeDB):
+    def override_get_db():
+        yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+    return TestClient(app)
+
+
+def sign_internal(invoice_id: uuid.UUID, amount: Decimal, timestamp: str, secret: str) -> str:
+    return hmac.new(
+        secret.encode(),
+        f"{timestamp}.{invoice_id}.{amount:.2f}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def signed_headers(invoice_id, amount: str, secret: str = "secret-key") -> dict:
+    timestamp = str(int(time.time() * 1000))
     return {
-        "event": "charge.success",
-        "data": {
-            "reference":  reference or f"INV-2025-{uuid.uuid4().hex[:6]}",
-            "amount":     amount_kobo,
-            "currency":   "GHS",
-            "channel":    channel,
-            "customer":   {"email": "ama@email.com"},
-            "metadata":   {"invoice_id": str(invoice_id or uuid.uuid4())},
-            "authorization": {},
-        },
+        "X-Source": "paystack-webhook",
+        "X-Internal-Timestamp": timestamp,
+        "X-Internal-Signature": sign_internal(invoice_id, Decimal(amount), timestamp, secret),
     }
 
 
-# ─── Tests ────────────────────────────────────────────────────
-class TestSignatureVerification:
-    """Webhook rejects requests with a bad or missing signature."""
+def test_missing_source_header_returns_403():
+    invoice = make_invoice()
+    db = FakeDB(invoice=invoice)
+    client = make_client(db)
 
-    def test_missing_signature_returns_422(self):
-        """Pydantic marks the Header as required — missing → 422."""
-        client = TestClient(app)
-        res = client.post(
-            "/webhooks/paystack",
-            json={"event": "charge.success", "data": {}},
-        )
-        assert res.status_code == 422
+    response = client.post(
+        f"/invoices/{invoice.id}/payments",
+        json={
+            "amount": "100.00",
+            "method": "paystack",
+            "paid_at": "2026-03-29",
+        },
+    )
 
-    def test_wrong_signature_returns_401(self):
-        """Valid JSON but wrong HMAC → 401."""
-        client = TestClient(app)
-        payload = _charge_success_payload()
-        raw, _ = _sign(payload)
-        res = client.post(
-            "/webhooks/paystack",
-            content=raw,
+    app.dependency_overrides.clear()
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Forbidden"}
+
+
+def test_invalid_internal_signature_returns_401():
+    invoice = make_invoice()
+    db = FakeDB(invoice=invoice)
+    client = make_client(db)
+
+    with patch.object(webhooks.settings, "INTERNAL_WEBHOOK_SECRET", "secret-key"):
+        response = client.post(
+            f"/invoices/{invoice.id}/payments",
+            json={
+                "amount": "100.00",
+                "method": "paystack",
+                "paid_at": "2026-03-29",
+            },
             headers={
-                "Content-Type": "application/json",
-                "x-paystack-signature": "000000wrong",
+                "X-Source": "paystack-webhook",
+                "X-Internal-Timestamp": str(int(time.time() * 1000)),
+                "X-Internal-Signature": "bad-signature",
             },
         )
-        assert res.status_code == 401
 
-    def test_correct_signature_accepted(self):
-        """Valid HMAC → does not return 401/422 (may fail at DB level in unit context)."""
-        client = TestClient(app, raise_server_exceptions=False)
-        payload = _charge_success_payload()
-        raw, sig = _sign(payload)
-        res = client.post(
-            "/webhooks/paystack",
-            content=raw,
-            headers={
-                "Content-Type": "application/json",
-                "x-paystack-signature": sig,
-            },
+    app.dependency_overrides.clear()
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid internal signature"}
+
+
+def test_payment_rejected_when_secret_not_configured():
+    invoice = make_invoice()
+    db = FakeDB(invoice=invoice)
+    client = make_client(db)
+
+    with patch.object(webhooks.settings, "INTERNAL_WEBHOOK_SECRET", ""):
+        response = client.post(
+            f"/invoices/{invoice.id}/payments",
+            json={"amount": "100.00", "method": "paystack", "paid_at": "2026-03-29"},
+            headers={"X-Source": "paystack-webhook"},
         )
-        # Signature passed; result might be 200 or 500 depending on DB
-        assert res.status_code != 401
-        assert res.status_code != 422
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 401
+    assert db.committed is False
 
 
-class TestChargeSuccessHandler:
-    """charge.success creates Payment + JournalEntry + updates invoice."""
+def test_signature_matches_relay_format_for_whole_amounts():
+    """The relay signs (amount / 100).toFixed(2), so 1500 cedis is "1500.00"."""
+    invoice_id = uuid.uuid4()
+    timestamp = str(int(time.time() * 1000))
+    relay_signature = hmac.new(
+        b"secret-key",
+        f"{timestamp}.{invoice_id}.1500.00".encode(),
+        hashlib.sha256,
+    ).hexdigest()
 
-    @patch("app.routers.webhooks._handle_charge_success")
-    def test_charge_success_event_routed(self, mock_handler):
-        """charge.success payload reaches the handler."""
-        mock_handler.return_value = None  # coroutine mock
-        import asyncio
-        mock_handler.side_effect = lambda db, data: asyncio.coroutine(lambda: None)()
-
-        client = TestClient(app, raise_server_exceptions=False)
-        payload = _charge_success_payload()
-        raw, sig = _sign(payload)
-
-        res = client.post(
-            "/webhooks/paystack",
-            content=raw,
-            headers={
-                "Content-Type": "application/json",
-                "x-paystack-signature": sig,
-            },
-        )
-        assert res.status_code == 200
-        assert res.json() == {"status": "ok"}
-
-    def test_missing_invoice_id_returns_200(self):
-        """Missing metadata.invoice_id logs a warning but still returns 200."""
-        client = TestClient(app, raise_server_exceptions=False)
-        payload = {
-            "event": "charge.success",
-            "data": {
-                "reference": "REF-001",
-                "amount":    100000,
-                "currency":  "GHS",
-                "channel":   "card",
-                "customer":  {"email": "test@test.com"},
-                "metadata":  {},              # no invoice_id
-                "authorization": {},
-            },
-        }
-        raw, sig = _sign(payload)
-        res = client.post(
-            "/webhooks/paystack",
-            content=raw,
-            headers={
-                "Content-Type": "application/json",
-                "x-paystack-signature": sig,
-            },
-        )
-        assert res.status_code == 200
+    with patch.object(webhooks.settings, "INTERNAL_WEBHOOK_SECRET", "secret-key"):
+        assert webhooks._verify_internal_sig(invoice_id, Decimal("1500"), timestamp, relay_signature) is True
 
 
-class TestUnhandledEvents:
-    """Other event types return 200 without error."""
+def test_verify_internal_sig_accepts_valid_and_rejects_stale():
+    invoice_id = uuid.uuid4()
+    amount = Decimal("250.00")
+    fresh_timestamp = str(int(time.time() * 1000))
+    stale_timestamp = str(int((time.time() - 60) * 1000))
 
-    @pytest.mark.parametrize("event", [
-        "transfer.success",
-        "transfer.failed",
-        "subscription.create",
-        "invoice.create",
-        "refund.processed",
-    ])
-    def test_unhandled_events_return_200(self, event: str):
-        client = TestClient(app, raise_server_exceptions=False)
-        payload = {"event": event, "data": {}}
-        raw, sig = _sign(payload)
-        res = client.post(
-            "/webhooks/paystack",
-            content=raw,
-            headers={
-                "Content-Type": "application/json",
-                "x-paystack-signature": sig,
-            },
-        )
-        assert res.status_code == 200
-        assert res.json()["status"] == "ok"
+    with patch.object(webhooks.settings, "INTERNAL_WEBHOOK_SECRET", "secret-key"):
+        valid_sig = sign_internal(invoice_id, amount, fresh_timestamp, "secret-key")
+        stale_sig = sign_internal(invoice_id, amount, stale_timestamp, "secret-key")
 
-
-class TestAmountConversion:
-    """Verify pesewa → GHS conversion is correct."""
-
-    def test_amount_conversion(self):
-        """GHS 4,800 = 480,000 kobo/pesewas."""
-        amount_kobo = 480_000
-        amount_ghs = Decimal(str(amount_kobo)) / Decimal("100")
-        assert amount_ghs == Decimal("4800.00")
-
-    def test_partial_amount(self):
-        """GHS 1,200.50 = 120,050 kobo."""
-        amount_kobo = 120_050
-        amount_ghs = Decimal(str(amount_kobo)) / Decimal("100")
-        assert amount_ghs == Decimal("1200.50")
-
-
-class TestMobileMoneyChannelMapping:
-    """Mobile money network detection from authorization.bank field."""
-
-    @pytest.mark.parametrize("bank_name,expected_method", [
-        ("MTN Mobile Money",   "momo_mtn"),
-        ("Vodafone Cash",      "momo_vodafone"),
-        ("AirtelTigo Money",   "momo_airteltigo"),
-        ("Unknown Network",    "momo_mtn"),      # fallback stays generic
-    ])
-    def test_channel_map_mobile_money(self, bank_name: str, expected_method: str):
-        """Verify channel detection logic directly."""
-        from app.routers.webhooks import CHANNEL_MAP
-
-        channel = "mobile_money"
-        method = CHANNEL_MAP.get(channel, "paystack")
-
-        # Apply the network-specific override logic (same as in handler)
-        bank_lower = bank_name.lower()
-        if "mtn" in bank_lower:
-            method = "momo_mtn"
-        elif "vodafone" in bank_lower or "voda" in bank_lower:
-            method = "momo_vodafone"
-        elif "airteltigo" in bank_lower or "airtel" in bank_lower:
-            method = "momo_airteltigo"
-
-        assert method == expected_method
-
-
-class TestIdempotency:
-    """Duplicate webhooks do not create double payments."""
-
-    def test_idempotency_guard_logic(self):
-        """
-        Simulate the idempotency check: if a Payment with the same
-        provider_ref already exists, the handler should return early.
-
-        This is a pure logic test — no DB required.
-        """
-        provider_ref = "test-ref-123"
-
-        # Simulate: Payment with this ref exists
-        mock_existing = MagicMock()
-        mock_db = MagicMock()
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_existing
-
-        # The handler checks for existing payment before doing anything
-        existing = mock_db.query(None).filter(None).first()
-        assert existing is not None  # guard fires, handler returns early
-
-
-# ─── Integration test skeleton ────────────────────────────────
-class TestIntegration:
-    """
-    Full integration tests require a running PostgreSQL database.
-    These are skipped in CI unless INTEGRATION_TESTS=1 is set.
-
-    To run locally:
-        INTEGRATION_TESTS=1 pytest tests/test_webhooks.py::TestIntegration -v
-    """
-
-    @pytest.fixture(autouse=True)
-    def skip_without_db(self):
-        import os
-        if not os.getenv("INTEGRATION_TESTS"):
-            pytest.skip("Set INTEGRATION_TESTS=1 to run integration tests")
-
-    def test_full_payment_flow(self, test_db):
-        """
-        Full flow:
-        1. Create a client, booking, invoice in the test DB
-        2. Send a charge.success webhook with that invoice_id
-        3. Assert: Payment row created, invoice.status=paid,
-                   JournalEntry created, booking.status=confirmed
-        """
-        # TODO: implement with test_db fixture once DB is set up
-        pass
+        assert webhooks._verify_internal_sig(invoice_id, amount, fresh_timestamp, valid_sig) is True
+        assert webhooks._verify_internal_sig(invoice_id, amount, stale_timestamp, stale_sig) is False

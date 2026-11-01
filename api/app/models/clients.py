@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text
+from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Index, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -9,6 +9,10 @@ import uuid
 
 class Client(Base):
     __tablename__ = "clients"
+    __table_args__ = (
+        Index("idx_clients_assigned_to", "assigned_to"),
+        Index("idx_clients_status", "status"),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     first_name = Column(String(100), nullable=False)
@@ -34,6 +38,9 @@ class Client(Base):
 
 class ClientAddress(Base):
     __tablename__ = "client_addresses"
+    __table_args__ = (
+        Index("idx_client_addresses_client_id", "client_id"),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
@@ -48,6 +55,10 @@ class ClientAddress(Base):
 
 class Interaction(Base):
     __tablename__ = "interactions"
+    __table_args__ = (
+        Index("idx_interactions_user_id", "user_id"),
+        Index("idx_interactions_client_id", "client_id"),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
@@ -72,6 +83,11 @@ class Tag(Base):
 
 class ClientTag(Base):
     __tablename__ = "client_tags"
+    __table_args__ = (
+        Index("idx_client_tags_tag_id", "tag_id"),
+        UniqueConstraint("client_id", "tag_id", name="uq_client_tags_client_tag"),
+    )
+
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)

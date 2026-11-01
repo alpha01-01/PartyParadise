@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/lib/auth";
+import { getAccessToken, getRefreshToken } from "@/lib/api";
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -19,12 +20,29 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    const accessToken = getAccessToken();
+    const refreshToken = getRefreshToken();
+
+    if (isAuthenticated && accessToken) {
+      setHydrated(true);
+      return;
+    }
+
+    if (!refreshToken) {
+      setHydrated(true);
+      return;
+    }
+
+    let cancelled = false;
     async function hydrate() {
       await _hydrateTokens();
-      setHydrated(true);
+      if (!cancelled) setHydrated(true);
     }
-    hydrate();
-  }, []);
+    void hydrate();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, _hydrateTokens]);
 
   useEffect(() => {
     if (!hydrated) return;

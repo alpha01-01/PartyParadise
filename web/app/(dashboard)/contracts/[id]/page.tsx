@@ -40,7 +40,10 @@ export default function ContractDetailPage() {
     if (!contract) return;
     setSending(true);
     try {
-      await api.patch(`/contracts/${contract.id}/send`);
+      const { data: sent } = await api.patch(`/contracts/${contract.id}/send`);
+      if (!sent.email_sent) {
+        window.prompt("The email was not delivered. Copy this signing link for the client:", sent.signing_url);
+      }
       const { data } = await api.get<Contract>(`/contracts/${contract.id}`);
       setContract(data);
     } catch (err) {

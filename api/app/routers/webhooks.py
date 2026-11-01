@@ -2,7 +2,8 @@
 app/routers/webhooks.py
 
 Internal endpoint called by the Next.js Paystack webhook handler.
-NOT public — only reachable from the webhook relay.
+Every request must carry a valid HMAC signature from the webhook relay.
+Requests are rejected while INTERNAL_WEBHOOK_SECRET is not configured.
 
 Flow:
   Paystack  →  Next.js /api/webhooks/paystack  →  POST /invoices/{id}/payments (here)
@@ -21,14 +22,19 @@ import hashlib
 import hmac as _hmac
 import time
 import uuid
+from datetime import date
 from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, status
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.schemas.types import Money
+from app.services.payments import get_invoice_for_update, record_invoice_payment
+from app.services.paystack import confirm_charge
 from app.models import (
     Invoice,
     Payment,
@@ -45,9 +51,9 @@ router = APIRouter(tags=["webhooks-internal"])
 
 # ─── Request schema ───────────────────────────────────────────
 class WebhookPaymentIn(BaseModel):
-    amount:       Decimal     = Field(..., gt=0, description="Amount in GHS")
+    amount:       Money     = Field(..., gt=0, description="Amount in GHS")
     method:       str         = Field(..., description="PaymentMethod enum value")
-    paid_at:      str         = Field(..., description="ISO date YYYY-MM-DD")
+    paid_at:      date        = Field(..., description="ISO date YYYY-MM-DD")
     provider_ref: Optional[str] = None
     notes:        Optional[str] = None
 
@@ -55,7 +61,7 @@ class WebhookPaymentIn(BaseModel):
 # ─── Internal HMAC verification ───────────────────────────────
 def _verify_internal_sig(
     invoice_id: str,
-    amount: Decimal,
+    amount: Money,
     timestamp: str,
     signature: str,
 ) -> bool:
@@ -63,9 +69,9 @@ def _verify_internal_sig(
     Validates the HMAC-SHA256 written by Next.js before forwarding to us.
     Prevents arbitrary callers from recording payments directly.
     """
-    secret = getattr(settings, "INTERNAL_WEBHOOK_SECRET", None)
+    secret = settings.INTERNAL_WEBHOOK_SECRET
     if not secret:
-        return True  # Skip verification when not configured (local dev)
+        return False  # Fail closed: never accept unsigned payments
 
     # Reject requests older than 30 seconds
     try:
@@ -77,11 +83,11 @@ def _verify_internal_sig(
 
     expected = _hmac.new(
         secret.encode(),
-        f"{timestamp}.{invoice_id}.{float(amount)}".encode(),
+        f"{timestamp}.{invoice_id}.{amount:.2f}".encode(),  # relay signs toFixed(2)
         hashlib.sha256,
     ).hexdigest()
 
-    return _hmac.compare_digest(expected, signature)
+    return _hmac.compare_digest(expected.encode(), signature.encode())
 
 
 # ─── Endpoint ─────────────────────────────────────────────────
@@ -102,126 +108,44 @@ def record_webhook_payment(
     if x_source != "paystack-webhook":
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    # 2. Verify internal HMAC (when INTERNAL_WEBHOOK_SECRET is configured)
-    if getattr(settings, "INTERNAL_WEBHOOK_SECRET", None):
-        if not _verify_internal_sig(
-            invoice_id,
-            payload.amount,
-            x_internal_timestamp,
-            x_internal_signature,
-        ):
-            raise HTTPException(status_code=401, detail="Invalid internal signature")
+    # 2. Verify internal HMAC
+    if not _verify_internal_sig(
+        invoice_id,
+        payload.amount,
+        x_internal_timestamp,
+        x_internal_signature,
+    ):
+        raise HTTPException(status_code=401, detail="Invalid internal signature")
 
-    # 3. Load invoice — row-level lock prevents concurrent double-recording
-    invoice: Optional[Invoice] = (
-        db.query(Invoice)
-        .filter(Invoice.id == invoice_id)
-        .with_for_update()
-        .first()
-    )
+    # 3. Row lock prevents concurrent double-recording
+    invoice: Optional[Invoice] = get_invoice_for_update(db, invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-    # 4. Idempotency — Paystack can send the same event multiple times
-    if payload.provider_ref:
-        duplicate = (
-            db.query(Payment)
-            .filter(Payment.provider_ref == payload.provider_ref)
-            .first()
+    # 4. Paystack's own record must agree with what the relay told us
+    if not payload.provider_ref:
+        raise HTTPException(status_code=422, detail="provider_ref is required")
+    confirm_charge(payload.provider_ref, payload.amount, invoice_id)
+
+    # 5. Payment, invoice totals, ledger and client notification
+    try:
+        payment = record_invoice_payment(
+            db,
+            invoice,
+            amount=payload.amount,
+            method=payload.method,
+            paid_at=payload.paid_at,
+            source="webhook",
+            provider_ref=payload.provider_ref,
+            notes=payload.notes,
         )
-        if duplicate:
-            # 409 tells the Next.js relay: "already processed, stop retrying"
-            raise HTTPException(
-                status_code=409,
-                detail=f"Payment provider_ref {payload.provider_ref!r} already exists",
-            )
-
-    # 5. Sanity-check amount
-    amount_due = (invoice.total_amount or Decimal("0")) - (invoice.amount_paid or Decimal("0"))
-    if payload.amount > amount_due:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                f"Payment {payload.amount} exceeds outstanding balance {amount_due} "
-                f"on invoice {invoice.reference}"
-            ),
-        )
-
-    # ── Single atomic transaction from here ──────────────────
-
-    # 6. Payment record
-    payment = Payment(
-        id           = uuid.uuid4(),
-        invoice_id   = invoice.id,
-        received_by  = None,           # system — no staff user involved
-        reference    = generate_reference("PAY", Payment, db),
-        amount       = payload.amount,
-        method       = payload.method,
-        status       = "confirmed",
-        provider_ref = payload.provider_ref,
-        paid_at      = payload.paid_at,
-        notes        = payload.notes,
-    )
-    db.add(payment)
-
-    # 7. Update invoice totals
-    new_paid  = (invoice.amount_paid or Decimal("0")) + payload.amount
-    remaining = invoice.total_amount - new_paid
-    invoice.amount_paid = new_paid
-    invoice.status = "paid" if remaining <= 0 else "partial"
-
-    # 8. Journal entry (income side)
-    open_period: Optional[AccountPeriod] = (
-        db.query(AccountPeriod)
-        .filter(AccountPeriod.status == "open")
-        .order_by(AccountPeriod.start_date.desc())
-        .first()
-    )
-    journal = JournalEntry(
-        id          = uuid.uuid4(),
-        period_id   = open_period.id if open_period else None,
-        created_by  = None,
-        reference   = f"JE-{payment.reference}",
-        type        = "income",
-        description = (
-            f"Payment received — {invoice.reference} "
-            f"via {payload.method.replace('_', ' ').title()}"
-        ),
-        amount      = payload.amount,
-        source_type = "payment",
-        source_id   = payment.id,
-        entry_date  = payload.paid_at,
-    )
-    db.add(journal)
-
-    # 9. Portal notification — let the client know their payment landed
-    portal_account: Optional[ClientPortalAccount] = (
-        db.query(ClientPortalAccount)
-        .filter(ClientPortalAccount.client_id == invoice.client_id)
-        .first()
-    )
-    if portal_account:
-        amount_fmt = f"GHS {float(payload.amount):,.2f}"
-        status_msg = (
-            "Your balance is now fully settled."
-            if invoice.status == "paid"
-            else f"Outstanding balance: GHS {float(remaining):,.2f}."
-        )
-        db.add(PortalNotification(
-            id                = uuid.uuid4(),
-            portal_account_id = portal_account.id,
-            type              = "payment_received",
-            title             = "Payment received ✓",
-            message           = (
-                f"We've received your payment of {amount_fmt} "
-                f"for invoice {invoice.reference}. {status_msg}"
-            ),
-            action_url        = f"/portal/invoices/{invoice.id}",
-        ))
-
-    # 10. Commit everything
-    db.commit()
+        db.commit()
+    except IntegrityError:
+        # The same event arrived for another invoice at the same moment
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Payment already recorded")
     db.refresh(payment)
+    remaining = invoice.total_amount - invoice.amount_paid
 
     return {
         "payment_id":     str(payment.id),

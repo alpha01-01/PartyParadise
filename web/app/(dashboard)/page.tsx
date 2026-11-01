@@ -79,7 +79,7 @@ export default function DashboardPage() {
         <StatCard
           label="Revenue · This Month"
           value={formatCurrency(summary?.revenue_this_month, { compact: true })}
-          delta={summaryLoading ? null : { label: "vs last month", dir: "up" }}
+          delta={null}
           icon="₵"
           loading={summaryLoading}
           highlight
@@ -109,7 +109,7 @@ export default function DashboardPage() {
         <StatCard
           label="New Leads · This Month"
           value={String(summary?.new_leads_this_month ?? "—")}
-          delta={{ label: "3 awaiting follow-up", dir: "neutral" }}
+          delta={null}
           icon={<UsersIcon />}
           loading={summaryLoading}
         />
@@ -323,7 +323,7 @@ function RevenueChart({
   return (
     <div className="pp-card" style={{ padding: 0 }}>
       <div className="pp-card-header">
-        <span className="pp-card-title">Revenue Trend</span>
+        <span className="pp-card-title">Revenue This Month</span>
         <Link href="/reports" className="pp-card-link">Reports →</Link>
       </div>
       {loading ? (

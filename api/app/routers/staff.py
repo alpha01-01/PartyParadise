@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Optional
 from uuid import UUID
-from datetime import date, time
+from datetime import date, datetime, time
 from decimal import Decimal
 
 from app.database import get_db
-from app.dependencies import require_permission
+from app.schemas.types import Money
+from app.dependencies import has_permission, require_permission
 
 router = APIRouter()
 
@@ -24,8 +25,8 @@ class CreateStaffRequest(BaseModel):
     phone: Optional[str] = None
     emergency_contact: Optional[str] = None
     emergency_phone: Optional[str] = None
-    base_salary: Optional[Decimal] = None
-    daily_rate: Optional[Decimal] = None
+    base_salary: Optional[Money] = None
+    daily_rate: Optional[Money] = None
     hired_at: Optional[date] = None
 
 
@@ -35,8 +36,8 @@ class UpdateStaffRequest(BaseModel):
     phone: Optional[str] = None
     emergency_contact: Optional[str] = None
     emergency_phone: Optional[str] = None
-    base_salary: Optional[Decimal] = None
-    daily_rate: Optional[Decimal] = None
+    base_salary: Optional[Money] = None
+    daily_rate: Optional[Money] = None
     is_active: Optional[bool] = None
 
 
@@ -60,12 +61,12 @@ class UpdateShiftRequest(BaseModel):
 
 
 class ClockInRequest(BaseModel):
-    clock_in: time
+    clock_in: Optional[time] = None   # only managers may set this; otherwise server time
     notes: Optional[str] = None
 
 
 class ClockOutRequest(BaseModel):
-    clock_out: time
+    clock_out: Optional[time] = None  # only managers may set this; otherwise server time
     notes: Optional[str] = None
 
 
@@ -76,21 +77,124 @@ class CreateLeaveRequest(BaseModel):
     end_date: date
     reason: Optional[str] = None
 
+    @model_validator(mode="after")
+    def end_after_start(self):
+        if self.end_date < self.start_date:
+            raise ValueError("Leave cannot end before it starts")
+        return self
+
 
 class ReviewLeaveRequest(BaseModel):
     status: str             # approved | declined
     review_notes: Optional[str] = None
 
 
+# Responses are declared explicitly so User columns such as password_hash
+# can never be serialised from a loaded relationship.
+
+class StaffUserResponse(BaseModel):
+    id: UUID
+    full_name: str
+    email: str
+    phone: Optional[str] = None
+    avatar_url: Optional[str] = None
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class StaffProfileResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    role_title: str
+    employment_type: str
+    phone: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    emergency_phone: Optional[str] = None
+    base_salary: Optional[float] = None
+    daily_rate: Optional[float] = None
+    hired_at: Optional[date] = None
+    is_active: bool
+    created_at: datetime
+    user: Optional[StaffUserResponse] = None
+
+    model_config = {"from_attributes": True}
+
+
+class LeaveStaffResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    role_title: str
+    user: Optional[StaffUserResponse] = None
+
+    model_config = {"from_attributes": True}
+
+
+class LeaveRequestResponse(BaseModel):
+    id: UUID
+    staff_id: UUID
+    reviewed_by: Optional[UUID] = None
+    type: str
+    start_date: date
+    end_date: date
+    days_requested: int
+    status: str
+    reason: Optional[str] = None
+    review_notes: Optional[str] = None
+    created_at: datetime
+    staff: Optional[LeaveStaffResponse] = None
+
+    model_config = {"from_attributes": True}
+
+
+class StaffCreatedResponse(StaffProfileResponse):
+    invite_sent: bool = False
+    setup_url: Optional[str] = None  # only when the invite could not be emailed
+
+
+LIST_LIMIT = 500
+MANAGED_FIELDS = {"role_title", "employment_type", "base_salary", "daily_rate", "is_active"}
+
+
+def with_visible_pay(db: Session, user, profiles: list) -> list[StaffProfileResponse]:
+    """Pay is for managers, and for each person's own record."""
+    can_see_all = has_permission(db, user, "staff:manage")
+    visible = []
+    for profile in profiles:
+        response = StaffProfileResponse.model_validate(profile)
+        if not can_see_all and profile.user_id != user.id:
+            response.base_salary = None
+            response.daily_rate = None
+        visible.append(response)
+    return visible
+
+
+def ensure_own_shift_or_manager(db: Session, user, shift) -> None:
+    from app.models.staff import StaffProfile
+
+    if has_permission(db, user, "staff:manage"):
+        return
+    profile = db.query(StaffProfile).filter(StaffProfile.user_id == user.id).first()
+    if not profile or profile.id != shift.staff_id:
+        raise HTTPException(status_code=403, detail="You can only clock in or out of your own shifts")
+
+
+def clock_time(db: Session, user, supplied: Optional[time]) -> time:
+    """Times are server time unless a manager is correcting a record."""
+    if supplied is not None and has_permission(db, user, "staff:manage"):
+        return supplied
+    return datetime.now().time().replace(microsecond=0)
+
+
 # ─── Staff profiles ───────────────────────────────────────────
 
-@router.get("")
+@router.get("", response_model=list[StaffProfileResponse])
 def list_staff(
     employment_type: str = Query(None),
     is_active: bool = Query(True),
     search: str = Query(None),
     db: Session = Depends(get_db),
-    _=Depends(require_permission("staff:read")),
+    current_user=Depends(require_permission("staff:read")),
 ):
     from app.models.staff import StaffProfile
     from app.models.auth import User
@@ -109,49 +213,38 @@ def list_staff(
             (StaffProfile.role_title.ilike(f"%{search}%"))
         )
 
-    return query.order_by(User.full_name.asc()).all()
+    return with_visible_pay(db, current_user, query.order_by(User.full_name.asc()).limit(LIST_LIMIT).all())
 
 
-@router.get("/{staff_id}")
-def get_staff_member(
-    staff_id: UUID,
-    db: Session = Depends(get_db),
-    _=Depends(require_permission("staff:read")),
-):
-    from app.models.staff import StaffProfile
-
-    profile = db.query(StaffProfile).filter(StaffProfile.id == staff_id).first()
-    if not profile:
-        raise HTTPException(status_code=404, detail="Staff member not found")
-    return profile
-
-
-@router.post("", status_code=201)
+@router.post("", status_code=201, response_model=StaffCreatedResponse)
 def create_staff(
     data: CreateStaffRequest,
     db: Session = Depends(get_db),
     current_user=Depends(require_permission("staff:create")),
 ):
     """
-    Creates a User account + StaffProfile in one step.
-    Sends a welcome email with a temporary password (TODO: email delivery).
+    Creates a User account + StaffProfile in one step, then invites the new
+    member to choose a password. If the email cannot be sent, the link is
+    returned so whoever created the account can pass it on.
     """
     from app.models.auth import User, Role, UserRole
     from app.models.staff import StaffProfile
-    from app.utils.security import hash_password
+    from app.config import settings
+    from app.services.auth import get_user_by_email
+    from app.services.email import send_staff_invite
+    from app.utils.security import STAFF_INVITE_TOKEN_HOURS, create_password_reset_token, hash_password
     import secrets
 
     # Check email not already taken
-    existing = db.query(User).filter(User.email == data.email).first()
+    existing = get_user_by_email(db, data.email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
     # Create user
-    temp_password = secrets.token_urlsafe(12)
     user = User(
-        email=data.email,
+        email=data.email.lower(),
         full_name=f"{data.first_name} {data.last_name}",
-        password_hash=hash_password(temp_password),
+        password_hash=hash_password(secrets.token_urlsafe(32)),
         is_active=True,
     )
     db.add(user)
@@ -178,29 +271,47 @@ def create_staff(
     db.commit()
     db.refresh(profile)
 
-    # TODO: send welcome email with temp_password
-    return profile
+    token = create_password_reset_token(str(user.id), user.password_hash, hours=STAFF_INVITE_TOKEN_HOURS)
+    setup_url = f"{settings.WEB_URL}/login/reset/{token}"
+    invite_sent = send_staff_invite(user, setup_url)
+
+    return StaffCreatedResponse.model_validate(profile).model_copy(
+        update={"invite_sent": invite_sent, "setup_url": None if invite_sent else setup_url}
+    )
 
 
-@router.patch("/{staff_id}")
+@router.patch("/{staff_id}", response_model=StaffProfileResponse)
 def update_staff(
     staff_id: UUID,
     data: UpdateStaffRequest,
     db: Session = Depends(get_db),
-    _=Depends(require_permission("staff:update")),
+    current_user=Depends(require_permission("staff:update")),
 ):
+    from app.models.auth import UserSession
     from app.models.staff import StaffProfile
 
     profile = db.query(StaffProfile).filter(StaffProfile.id == staff_id).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Staff member not found")
 
-    for field, value in data.model_dump(exclude_none=True).items():
+    updates = data.model_dump(exclude_none=True)
+    # The edit form sends every field, so only a real change needs a manager
+    changed = {field for field in MANAGED_FIELDS & updates.keys() if updates[field] != getattr(profile, field)}
+    if changed and not has_permission(db, current_user, "staff:manage"):
+        raise HTTPException(status_code=403, detail="Only managers can change role, pay or status")
+
+    for field, value in updates.items():
         setattr(profile, field, value)
+
+    if updates.get("is_active") is False:
+        profile.user.is_active = False
+        db.query(UserSession).filter(UserSession.user_id == profile.user_id).delete()
+    elif updates.get("is_active") is True:
+        profile.user.is_active = True
 
     db.commit()
     db.refresh(profile)
-    return profile
+    return with_visible_pay(db, current_user, [profile])[0]
 
 
 # ─── Shifts ───────────────────────────────────────────────────
@@ -277,16 +388,17 @@ def create_shift(
     if not profile:
         raise HTTPException(status_code=404, detail="Staff member not found")
 
-    # Basic conflict check: same staff, same date, overlapping time
-    existing = db.query(Shift).filter(
+    # A shift with no end time is treated as running to the end of the day
+    new_end = data.end_time or time.max
+    same_day = db.query(Shift).filter(
         Shift.staff_id == data.staff_id,
         Shift.shift_date == data.shift_date,
         Shift.status.notin_(["cancelled"]),
-    ).first()
-    if existing:
+    ).all()
+    if any(data.start_time < (shift.end_time or time.max) and shift.start_time < new_end for shift in same_day):
         raise HTTPException(
             status_code=409,
-            detail=f"Staff already has a shift on {data.shift_date}. Check schedule before assigning."
+            detail=f"Staff already has an overlapping shift on {data.shift_date}. Check schedule before assigning."
         )
 
     shift = Shift(
@@ -334,6 +446,7 @@ def clock_in(
     shift = db.query(Shift).filter(Shift.id == shift_id).first()
     if not shift:
         raise HTTPException(status_code=404, detail="Shift not found")
+    ensure_own_shift_or_manager(db, current_user, shift)
 
     existing = db.query(Attendance).filter(Attendance.shift_id == shift_id).first()
     if existing:
@@ -342,7 +455,7 @@ def clock_in(
     attendance = Attendance(
         shift_id=shift_id,
         staff_id=shift.staff_id,
-        clock_in=data.clock_in,
+        clock_in=clock_time(db, current_user, data.clock_in),
         status="present",
         notes=data.notes,
     )
@@ -359,11 +472,10 @@ def clock_out(
     shift_id: UUID,
     data: ClockOutRequest,
     db: Session = Depends(get_db),
-    _=Depends(require_permission("staff:update")),
+    current_user=Depends(require_permission("staff:update")),
 ):
     from app.models.staff import Shift, Attendance
     from decimal import Decimal
-    from datetime import datetime
 
     attendance = db.query(Attendance).filter(Attendance.shift_id == shift_id).first()
     if not attendance:
@@ -371,15 +483,20 @@ def clock_out(
     if attendance.clock_out:
         raise HTTPException(status_code=400, detail="Already clocked out")
 
-    attendance.clock_out = data.clock_out
+    shift = db.query(Shift).filter(Shift.id == shift_id).first()
+    ensure_own_shift_or_manager(db, current_user, shift)
+
+    clock_out = clock_time(db, current_user, data.clock_out)
+    attendance.clock_out = clock_out
     if attendance.clock_in:
-        # Calculate hours worked
+        # Calculate hours worked. Clocking out earlier in the day means the shift ran past midnight.
         t_in  = datetime.combine(date.today(), attendance.clock_in)
-        t_out = datetime.combine(date.today(), data.clock_out)
+        t_out = datetime.combine(date.today(), clock_out)
         diff  = (t_out - t_in).total_seconds() / 3600
+        if diff < 0:
+            diff += 24
         attendance.hours_worked = Decimal(str(round(diff, 2)))
 
-    shift = db.query(Shift).filter(Shift.id == shift_id).first()
     if shift:
         shift.status = "completed"
 
@@ -393,7 +510,7 @@ def clock_out(
 
 # ─── Leave requests ───────────────────────────────────────────
 
-@router.get("/leave")
+@router.get("/leave", response_model=list[LeaveRequestResponse])
 def list_leave_requests(
     status: str = Query(None),
     staff_id: UUID = Query(None),
@@ -408,10 +525,10 @@ def list_leave_requests(
     if staff_id:
         query = query.filter(LeaveRequest.staff_id == staff_id)
 
-    return query.order_by(LeaveRequest.created_at.desc()).all()
+    return query.order_by(LeaveRequest.created_at.desc()).limit(LIST_LIMIT).all()
 
 
-@router.post("/leave", status_code=201)
+@router.post("/leave", status_code=201, response_model=LeaveRequestResponse)
 def create_leave_request(
     data: CreateLeaveRequest,
     db: Session = Depends(get_db),
@@ -437,14 +554,14 @@ def create_leave_request(
     return leave
 
 
-@router.patch("/leave/{leave_id}")
+@router.patch("/leave/{leave_id}", response_model=LeaveRequestResponse)
 def review_leave_request(
     leave_id: UUID,
     data: ReviewLeaveRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(require_permission("staff:update")),
+    current_user=Depends(require_permission("staff:manage")),
 ):
-    from app.models.staff import LeaveRequest
+    from app.models.staff import LeaveRequest, StaffProfile
 
     if data.status not in ("approved", "declined"):
         raise HTTPException(status_code=400, detail="status must be 'approved' or 'declined'")
@@ -454,6 +571,9 @@ def review_leave_request(
         raise HTTPException(status_code=404, detail="Leave request not found")
     if leave.status != "pending":
         raise HTTPException(status_code=400, detail="Leave request already reviewed")
+    own = db.query(StaffProfile).filter(StaffProfile.user_id == current_user.id).first()
+    if own and own.id == leave.staff_id:
+        raise HTTPException(status_code=403, detail="You cannot review your own leave request")
 
     leave.status = data.status
     leave.reviewed_by = current_user.id
@@ -462,3 +582,17 @@ def review_leave_request(
     db.commit()
     db.refresh(leave)
     return leave
+
+
+@router.get("/{staff_id}", response_model=StaffProfileResponse)
+def get_staff_member(
+    staff_id: UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("staff:read")),
+):
+    from app.models.staff import StaffProfile
+
+    profile = db.query(StaffProfile).filter(StaffProfile.id == staff_id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Staff member not found")
+    return with_visible_pay(db, current_user, [profile])[0]

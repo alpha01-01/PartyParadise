@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Integer, Numeric, Date
+from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Integer, Numeric, Date, Index, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -24,6 +24,10 @@ class Supplier(Base):
 
 class InventoryItem(Base):
     __tablename__ = "inventory_items"
+    __table_args__ = (
+        CheckConstraint("quantity_in_stock >= 0 AND reorder_level >= 0", name="ck_inventory_items_quantities"),
+        Index("idx_inventory_items_category", "category"),
+    )
 
     id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name              = Column(String(150), nullable=False)
@@ -45,6 +49,11 @@ class InventoryItem(Base):
 
 class InventoryTransaction(Base):
     __tablename__ = "inventory_transactions"
+    __table_args__ = (
+        Index("idx_inventory_transactions_booking_id", "booking_id"),
+        Index("idx_inventory_transactions_user_id", "user_id"),
+        Index("idx_inventory_transactions_item_id", "item_id"),
+    )
 
     id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     item_id    = Column(UUID(as_uuid=True), ForeignKey("inventory_items.id", ondelete="RESTRICT"), nullable=False)
@@ -62,6 +71,9 @@ class InventoryTransaction(Base):
 
 class Equipment(Base):
     __tablename__ = "equipment"
+    __table_args__ = (
+        Index("idx_equipment_status", "status"),
+    )
 
     id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name            = Column(String(150), nullable=False)
@@ -82,6 +94,10 @@ class Equipment(Base):
 
 class EquipmentMaintenance(Base):
     __tablename__ = "equipment_maintenance"
+    __table_args__ = (
+        Index("idx_equipment_maintenance_equipment_id", "equipment_id"),
+        Index("idx_equipment_maintenance_user_id", "user_id"),
+    )
 
     id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     equipment_id   = Column(UUID(as_uuid=True), ForeignKey("equipment.id", ondelete="CASCADE"), nullable=False)
@@ -98,6 +114,10 @@ class EquipmentMaintenance(Base):
 
 class PurchaseOrder(Base):
     __tablename__ = "purchase_orders"
+    __table_args__ = (
+        Index("idx_purchase_orders_created_by", "created_by"),
+        Index("idx_purchase_orders_supplier_id", "supplier_id"),
+    )
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     supplier_id  = Column(UUID(as_uuid=True), ForeignKey("suppliers.id", ondelete="RESTRICT"), nullable=False)
@@ -116,6 +136,10 @@ class PurchaseOrder(Base):
 
 class PurchaseOrderItem(Base):
     __tablename__ = "purchase_order_items"
+    __table_args__ = (
+        Index("idx_purchase_order_items_item_id", "item_id"),
+        Index("idx_purchase_order_items_order_id", "order_id"),
+    )
 
     id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     order_id          = Column(UUID(as_uuid=True), ForeignKey("purchase_orders.id", ondelete="CASCADE"), nullable=False)

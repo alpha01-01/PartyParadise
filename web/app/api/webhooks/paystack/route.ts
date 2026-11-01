@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { pesewasToAmount, signInternalPayment } from "@/lib/internalSignature";
 
 // ─── Paystack event shapes ────────────────────────────────────
 interface PaystackChargeData {
@@ -163,7 +164,7 @@ async function handleChargeSuccess(data: PaystackChargeData): Promise<void> {
     return;
   }
 
-  const amountGHS = data.amount / 100;
+  const amountGHS = pesewasToAmount(data.amount);
   const method    = mapChannel(data.channel, data.authorization);
 
   // POST to FastAPI backend.
@@ -180,18 +181,16 @@ async function handleChargeSuccess(data: PaystackChargeData): Promise<void> {
     "X-Source":     "paystack-webhook",
   };
 
-  // Optional internal secret — sign our internal request so the API
-  // can reject anything that didn't come through this webhook handler.
+  // Sign the internal request. The API rejects anything unsigned, so a
+  // missing secret means the payment cannot be recorded.
   const internalSecret = process.env.INTERNAL_WEBHOOK_SECRET;
-  if (internalSecret) {
-    const ts  = Date.now().toString();
-    const sig = crypto
-      .createHmac("sha256", internalSecret)
-      .update(`${ts}.${invoiceId}.${amountGHS}`)
-      .digest("hex");
-    headers["X-Internal-Timestamp"] = ts;
-    headers["X-Internal-Signature"] = sig;
+  if (!internalSecret) {
+    console.error("[paystack] INTERNAL_WEBHOOK_SECRET not configured", { invoiceId });
+    return;
   }
+  const ts  = Date.now().toString();
+  headers["X-Internal-Timestamp"] = ts;
+  headers["X-Internal-Signature"] = signInternalPayment(internalSecret, ts, invoiceId, amountGHS);
 
   let attempts = 0;
   const maxAttempts = 3;
@@ -206,7 +205,7 @@ async function handleChargeSuccess(data: PaystackChargeData): Promise<void> {
           amount:       amountGHS,
           method,
           paid_at:      data.paid_at.split("T")[0],
-          provider_ref: data.authorization?.authorization_code ?? data.reference,
+          provider_ref: data.reference,  // authorization_code repeats for saved cards
           notes:        `Paystack auto — ${data.channel} — ref: ${data.reference}`,
         }),
       });

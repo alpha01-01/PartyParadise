@@ -156,7 +156,6 @@ export default function InvoiceDetailPage() {
       </div>
 
       <div className="pp-toolbar-note">
-        <span>This screen should give finance and operations a single place to verify billing structure, payment activity, and the source booking before sharing the PDF.</span>
         <span>Draft and cancelled invoices can be removed here when duplicates are created during testing or admin cleanup.</span>
       </div>
 

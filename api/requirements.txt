@@ -1,7 +1,7 @@
 # ── Web framework ─────────────────────────────────────────────
 fastapi==0.111.0
 uvicorn[standard]==0.29.0
-python-multipart==0.0.9          # file uploads
+python-multipart==0.0.31         # file uploads
 
 # ── Database ──────────────────────────────────────────────────
 sqlalchemy==2.0.30
@@ -9,14 +9,14 @@ alembic==1.13.1
 psycopg2-binary==2.9.9           # PostgreSQL driver
 
 # ── Auth ──────────────────────────────────────────────────────
-python-jose[cryptography]==3.3.0  # JWT
+PyJWT==2.15.0                     # JWT
 bcrypt==4.1.3                     # password hashing
 passlib[bcrypt]==1.7.4
 
 # ── Config ────────────────────────────────────────────────────
 pydantic==2.7.1
 pydantic-settings==2.2.1
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 
 # ── HTTP client (for external calls e.g. Paystack verify) ─────
 httpx==0.27.0
@@ -28,10 +28,5 @@ supabase==2.4.2                   # Supabase storage SDK
 sendgrid==6.11.0                  # SendGrid email delivery
 
 # ── PDF generation ────────────────────────────────────────────
-weasyprint==62.1                  # HTML → PDF
-jinja2==3.1.4                     # HTML templates for PDFs
-
-# ── Testing ───────────────────────────────────────────────────
-pytest==8.2.0
-pytest-asyncio==0.23.6
-httpx==0.27.0                     # async test client
+weasyprint==70.0                  # HTML → PDF
+jinja2==3.1.6                     # HTML templates for PDFs

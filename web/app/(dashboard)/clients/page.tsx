@@ -279,21 +279,87 @@ function CardsView({ clients, selectedId, onSelect }: { clients: Client[]; selec
       {clients.map((client) => {
         const palette = avatarPalette(client.id);
         const name = `${client.first_name} ${client.last_name}`.trim();
+        const tags = client.tags ?? [];
         return (
-          <div key={client.id} className={cn("pp-client-card", selectedId === client.id && "pp-client-card--selected")} onClick={() => onSelect(client.id)}>
-            <div className="pp-client-card-top">
-              <div className="pp-client-av pp-client-av--lg" style={{ background: palette.bg, borderColor: palette.border, color: palette.text }}>{initials(name)}</div>
-              <span className={`pp-badge ${STATUS_BADGE[client.status]}`}>{STATUS_LABELS[client.status]}</span>
+          <div
+            key={client.id}
+            className={cn("pp-client-card polished-card", selectedId === client.id && "pp-client-card--selected")}
+            onClick={() => onSelect(client.id)}
+            tabIndex={0}
+            style={{ position: "relative", transition: "box-shadow 0.2s, border-color 0.2s", boxShadow: selectedId === client.id ? "0 4px 24px rgba(76,175,125,0.10)" : "0 2px 8px rgba(0,0,0,0.04)", border: selectedId === client.id ? "2px solid var(--pp-green)" : "1px solid var(--pp-border)" }}
+          >
+            {/* Status badge top-right */}
+            <span style={{ position: "absolute", top: 12, right: 12, zIndex: 2 }} className={`pp-badge polished-badge ${STATUS_BADGE[client.status]}`}>{STATUS_LABELS[client.status]}</span>
+            {/* Avatar */}
+            <div className="pp-client-av pp-client-av--lg polished-avatar" style={{ background: palette.bg, borderColor: palette.border, color: palette.text, boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>{initials(name)}</div>
+            {/* Name */}
+            <div className="pp-client-card-name polished-name" style={{ fontSize: 18, fontWeight: 700, marginTop: 8 }}>{name}</div>
+            {/* Tags */}
+            {tags.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0" }}>
+                {tags.map((tag) => <span key={tag.id} className="pp-tag polished-tag">{tag.name}</span>)}
+              </div>
+            )}
+            {/* Contact info */}
+            <div className="pp-client-card-meta polished-meta" style={{ color: "var(--pp-text-2)", fontSize: 13, margin: "6px 0" }}>
+              {client.phone && <span title="Phone" style={{ marginRight: 8 }}>📞 {client.phone}</span>}
+              {client.email && <span title="Email" style={{ marginRight: 8 }}>✉️ {client.email}</span>}
+              {client.whatsapp && <span title="WhatsApp" style={{ marginRight: 8 }}>🟢 WhatsApp</span>}
+              {!client.phone && !client.email && !client.whatsapp && <span style={{ color: "var(--pp-text-3)" }}>No contact info</span>}
             </div>
-            <div className="pp-client-card-name">{name}</div>
-            <div className="pp-client-card-meta">{client.phone ?? client.email ?? "No contact"} - {titleCase(client.source)}</div>
-            <div className="pp-client-card-footer">
-              <span>Joined {formatDate(client.created_at, "short")}</span>
-              <span>{client.whatsapp ? "WhatsApp ready" : "Needs outreach setup"}</span>
+            {/* Source */}
+            <div style={{ color: "var(--pp-text-3)", fontSize: 12, marginBottom: 4 }}>{titleCase(client.source)}</div>
+            {/* Footer/meta */}
+            <div className="pp-client-card-footer polished-footer" style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
+              <span>🗓️ Joined {formatDate(client.created_at, "short")}</span>
+              <span>{client.whatsapp ? "✅ WhatsApp ready" : "⚠️ Needs outreach setup"}</span>
+            </div>
+            {/* Actions on hover */}
+            <div className="polished-actions" style={{ position: "absolute", bottom: 12, right: 12, opacity: 0, pointerEvents: "none", transition: "opacity 0.2s" }}>
+              <button className="pp-btn pp-btn-ghost" style={{ fontSize: 12, padding: "2px 10px" }}>View</button>
             </div>
           </div>
         );
       })}
+      <style jsx global>{`
+        .polished-card:hover, .polished-card:focus {
+          box-shadow: 0 8px 32px rgba(76,175,125,0.13);
+          border-color: var(--pp-green);
+        }
+        .polished-card:hover .polished-actions, .polished-card:focus .polished-actions {
+          opacity: 1;
+          pointer-events: auto;
+        }
+        .polished-avatar {
+          margin: 0 auto;
+          border-radius: 50%;
+          width: 56px;
+          height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 22px;
+        }
+        .polished-badge {
+          border-radius: 12px;
+          font-size: 11px;
+          padding: 2px 10px;
+        }
+        .polished-tag {
+          border-radius: 10px;
+          font-size: 11px;
+          padding: 2px 8px;
+        }
+        .polished-name {
+          text-align: center;
+        }
+        .polished-meta {
+          text-align: center;
+        }
+        .polished-footer {
+          text-align: center;
+        }
+      `}</style>
     </div>
   );
 }

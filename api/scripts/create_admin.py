@@ -7,7 +7,7 @@ from app.database import SessionLocal
 from app.models.auth import User, Role, UserRole
 from app.utils.security import hash_password
 
-email = "liza@partyparadise.com"
+email = "liz@partyparadise.com"
 password = secrets.token_urlsafe(12)
 
 with SessionLocal() as db:

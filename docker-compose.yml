@@ -10,7 +10,7 @@ version: "3.9"
 # First time setup:
 #   1. cp .env.example .env  (fill in your values)
 #   2. docker compose up db -d
-#   3. cd apps/api && alembic upgrade head
+#   3. docker compose run --rm api alembic upgrade head
 #   4. docker compose up
 # ─────────────────────────────────────────────────────────────
 
@@ -22,10 +22,10 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: partyparadise
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -39,11 +39,12 @@ services:
     build:
       context: ./api
       dockerfile: Dockerfile
+      target: dev
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
-      DATABASE_URL: postgresql://postgres:password@db:5432/partyparadise
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/partyparadise
       ENV: development
     env_file:
       - .env
@@ -59,9 +60,10 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
+      target: dev
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
     env_file:

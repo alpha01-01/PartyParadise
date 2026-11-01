@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Integer, Date
+from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Integer, Date, Index
 from sqlalchemy.dialects.postgresql import UUID, INET
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -9,6 +9,9 @@ import uuid
 
 class ClientPortalAccount(Base):
     __tablename__ = "client_portal_accounts"
+    __table_args__ = (
+        Index("idx_portal_accounts_client_id", "client_id"),
+    )
 
     id            = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     client_id     = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, unique=True)
@@ -26,6 +29,10 @@ class ClientPortalAccount(Base):
 
 class PortalSession(Base):
     __tablename__ = "portal_sessions"
+    __table_args__ = (
+        Index("idx_portal_sessions_portal_account_id", "portal_account_id"),
+        Index("idx_portal_sessions_token_hash", "token_hash"),
+    )
 
     id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     portal_account_id = Column(UUID(as_uuid=True), ForeignKey("client_portal_accounts.id", ondelete="CASCADE"), nullable=False)
@@ -40,6 +47,10 @@ class PortalSession(Base):
 
 class PortalNotification(Base):
     __tablename__ = "portal_notifications"
+    __table_args__ = (
+        Index("idx_portal_notifications_account_id", "portal_account_id"),
+        Index("idx_portal_notifications_is_read", "is_read"),
+    )
 
     id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     portal_account_id = Column(UUID(as_uuid=True), ForeignKey("client_portal_accounts.id", ondelete="CASCADE"), nullable=False)
@@ -56,6 +67,11 @@ class PortalNotification(Base):
 
 class PortalInquiry(Base):
     __tablename__ = "portal_inquiries"
+    __table_args__ = (
+        Index("idx_portal_inquiries_portal_account_id", "portal_account_id"),
+        Index("idx_portal_inquiries_client_id", "client_id"),
+        Index("idx_portal_inquiries_status", "status"),
+    )
 
     id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     portal_account_id = Column(UUID(as_uuid=True), ForeignKey("client_portal_accounts.id", ondelete="CASCADE"), nullable=False)

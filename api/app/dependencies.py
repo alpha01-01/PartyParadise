@@ -1,5 +1,6 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 from typing import Annotated
 import uuid
@@ -26,7 +27,7 @@ def get_current_staff_user(
     token = credentials.credentials
     payload = decode_token(token)
 
-    if not payload or payload.get("type") != "staff":
+    if not payload or payload.get("type") != "staff" or payload.get("refresh"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
@@ -47,6 +48,25 @@ def get_current_staff_user(
 CurrentUser = Annotated[User, Depends(get_current_staff_user)]
 
 
+def has_permission(db: Session, user: User, permission_name: str) -> bool:
+    """Admins have full access. Everyone else needs it through one of their roles."""
+    match = (
+        db.query(Role.id)
+        .join(UserRole, UserRole.role_id == Role.id)
+        .outerjoin(RolePermission, RolePermission.role_id == Role.id)
+        .outerjoin(
+            Permission,
+            and_(Permission.id == RolePermission.permission_id, Permission.name == permission_name),
+        )
+        .filter(
+            UserRole.user_id == user.id,
+            or_(Role.name == "admin", Permission.id.isnot(None)),
+        )
+        .first()
+    )
+    return match is not None
+
+
 def require_permission(permission_name: str):
     """
     Dependency factory — use as:
@@ -56,28 +76,7 @@ def require_permission(permission_name: str):
         current_user: User = Depends(get_current_staff_user),
         db: Session = Depends(get_db),
     ) -> User:
-        # Admins have full access
-        is_admin = (
-            db.query(Role.name)
-            .join(UserRole, UserRole.role_id == Role.id)
-            .filter(UserRole.user_id == current_user.id, Role.name == "admin")
-            .first()
-        )
-        if is_admin:
-            return current_user
-
-        # Collect all permission names for this user via their roles
-        user_permissions = (
-            db.query(Permission.name)
-            .join(RolePermission, RolePermission.permission_id == Permission.id)
-            .join(Role, Role.id == RolePermission.role_id)
-            .join(UserRole, UserRole.role_id == Role.id)
-            .filter(UserRole.user_id == current_user.id)
-            .all()
-        )
-        permission_names = {p.name for p in user_permissions}
-
-        if permission_name not in permission_names:
+        if not has_permission(db, current_user, permission_name):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Permission denied: {permission_name}",
@@ -85,6 +84,7 @@ def require_permission(permission_name: str):
 
         return current_user
 
+    checker.permission = permission_name
     return checker
 
 
@@ -97,7 +97,7 @@ def get_current_portal_account(
     token = credentials.credentials
     payload = decode_token(token)
 
-    if not payload or payload.get("type") != "client":
+    if not payload or payload.get("type") != "client" or payload.get("refresh"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired portal token",

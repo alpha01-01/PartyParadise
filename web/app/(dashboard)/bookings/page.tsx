@@ -15,7 +15,7 @@ import {
 import type { Booking, BookingStatus, ServiceType } from "@/lib/types";
 import { downloadCsv } from "@/lib/export";
 
-// â”€â”€â”€ Status badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Status badge ─────────────────────────────────────────────
 function StatusBadge({ status }: { status: BookingStatus }) {
   const color = BOOKING_STATUS_COLORS[status] ?? "neutral";
   return (
@@ -25,7 +25,7 @@ function StatusBadge({ status }: { status: BookingStatus }) {
   );
 }
 
-// â”€â”€â”€ Service type pill â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Service type pill ────────────────────────────────────────
 const SVC_CLASS: Record<ServiceType, string> = {
   decor:             "svc-decor",
   photobooth_360:    "svc-360",
@@ -41,7 +41,7 @@ function ServicePill({ type }: { type: ServiceType }) {
   );
 }
 
-// â”€â”€â”€ Filter tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Filter tabs ──────────────────────────────────────────────
 const FILTER_TABS: { value: BookingStatus | "all"; label: string }[] = [
   { value: "all",         label: "All" },
   { value: "inquiry",     label: "Inquiry" },
@@ -52,7 +52,7 @@ const FILTER_TABS: { value: BookingStatus | "all"; label: string }[] = [
   { value: "cancelled",   label: "Cancelled" },
 ];
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ─────────────────────────────────────────────────────
 export default function BookingsPage() {
   const [view, setView] = useState<"table" | "calendar">("table");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -203,7 +203,7 @@ export default function BookingsPage() {
           <SearchIcon />
           <input
             className="pp-search-input"
-            placeholder="Search bookings or clientsâ€¦"
+            placeholder="Search bookings or clients…"
             defaultValue={filters.search ?? ""}
             onChange={(e) => {
               const val = e.target.value;
@@ -232,7 +232,7 @@ export default function BookingsPage() {
         </div>
       </div>
 
-      {/* â”€â”€ Error â”€â”€ */}
+      {/* ── Error ── */}
       <div className="pp-bookings-toolbar-note">
         <span>Exports download the bookings currently on screen.</span>
         <span>{view === "calendar" ? "Calendar view is best for spotting operational clashes." : "Table view is best for quick client and status triage."}</span>
@@ -253,7 +253,7 @@ export default function BookingsPage() {
         </div>
       )}
 
-      {/* â”€â”€ Content â”€â”€ */}
+      {/* ── Content ── */}
       {view === "table" ? (
         <TableView
           bookings={bookings}
@@ -273,7 +273,7 @@ export default function BookingsPage() {
         />
       )}
 
-      {/* â”€â”€ Drawer â”€â”€ */}
+      {/* ── Drawer ── */}
       <BookingDrawer
         booking={selectedBooking}
         open={drawerOpen}
@@ -284,7 +284,7 @@ export default function BookingsPage() {
   );
 }
 
-// â”€â”€â”€ Table view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Table view ───────────────────────────────────────────────
 function TableView({
   bookings,
   loading,
@@ -313,7 +313,7 @@ function TableView({
   if (!bookings.length) {
     return (
       <div className="pp-card pp-empty">
-        <div className="pp-empty-icon">ðŸ“‹</div>
+        <div className="pp-empty-icon">📋</div>
         <div className="pp-empty-title">No bookings found</div>
         <p className="pp-empty-sub">Try a different status filter or create a new event to start filling the pipeline.</p>
       </div>
@@ -354,7 +354,7 @@ function TableView({
                 </div>
               </td>
               <td>
-                <div style={{ color: "var(--pp-text)" }}>{b.event_type ?? "â€”"}</div>
+                <div style={{ color: "var(--pp-text)" }}>{b.event_type ?? "—"}</div>
                 <div style={{ fontSize: 11, color: "var(--pp-text-3)" }}>
                   {b.venue_name?.split(",")[0]}
                 </div>
@@ -406,7 +406,7 @@ function TableView({
             onClick={() => onPageChange(page - 1)}
             disabled={page <= 1}
           >
-            â€¹
+            ‹
           </button>
           {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
             const p = i + 1;
@@ -425,7 +425,7 @@ function TableView({
             onClick={() => onPageChange(page + 1)}
             disabled={page >= totalPages}
           >
-            â€º
+            ›
           </button>
         </div>
       </div>
@@ -433,7 +433,7 @@ function TableView({
   );
 }
 
-// â”€â”€â”€ Calendar view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Calendar view ────────────────────────────────────────────
 function CalendarView({
   bookings,
   loading,
@@ -499,8 +499,8 @@ function CalendarView({
           {date.toLocaleDateString("en-GH", { month: "long", year: "numeric" })}
         </span>
         <div style={{ display: "flex", gap: 4 }}>
-          <button className="pp-cal-nav-btn" onClick={prevMonth}>â€¹</button>
-          <button className="pp-cal-nav-btn" onClick={nextMonth}>â€º</button>
+          <button className="pp-cal-nav-btn" onClick={prevMonth}>‹</button>
+          <button className="pp-cal-nav-btn" onClick={nextMonth}>›</button>
         </div>
       </div>
       <div className="pp-cal-days-header">
@@ -529,9 +529,9 @@ function CalendarView({
                   key={b.id}
                   className={`pp-cal-event pp-cal-event--${b.service_type}`}
                   onClick={() => onOpen(b)}
-                  title={`${name} â€” ${SERVICE_TYPE_LABELS[b.service_type]}`}
+                  title={`${name} — ${SERVICE_TYPE_LABELS[b.service_type]}`}
                 >
-                  {first} Â· {SERVICE_TYPE_LABELS[b.service_type]}
+                  {first} · {SERVICE_TYPE_LABELS[b.service_type]}
                 </div>
                 );
               })}
@@ -546,7 +546,7 @@ function CalendarView({
   );
 }
 
-// â”€â”€â”€ Booking detail drawer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Booking detail drawer ────────────────────────────────────
 function BookingDrawer({
   booking,
   open,
@@ -592,7 +592,7 @@ function BookingDrawer({
                 <div className="pp-detail-grid">
                   <div className="pp-detail-item">
                     <span className="pp-detail-label">Event Type</span>
-                    <span className="pp-detail-value">{booking.event_type ?? "â€”"}</span>
+                    <span className="pp-detail-value">{booking.event_type ?? "—"}</span>
                   </div>
                   <div className="pp-detail-item">
                     <span className="pp-detail-label">Date</span>
@@ -604,7 +604,7 @@ function BookingDrawer({
                   </div>
                   <div className="pp-detail-item">
                     <span className="pp-detail-label">Venue</span>
-                    <span className="pp-detail-value">{booking.venue_name ?? "â€”"}</span>
+                    <span className="pp-detail-value">{booking.venue_name ?? "—"}</span>
                   </div>
                   {booking.guest_count && (
                     <div className="pp-detail-item">
@@ -706,7 +706,7 @@ function BookingDrawer({
   );
 }
 
-// â”€â”€â”€ Icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Icons ────────────────────────────────────────────────────
 const TableIcon  = () => <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="1" y="5.5" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="1" y="10" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.2"/></svg>;
 const CalIcon    = () => <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 5.5h12M4.5 1v2M9.5 1v2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>;
 const ExportIcon = () => <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 1v9M4 7l3 3 3-3M2 12h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>;

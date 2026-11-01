@@ -9,7 +9,7 @@ import { downloadCsv } from "@/lib/export";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
-// â”€â”€â”€ Expense categories (matches DB seed) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Expense categories (matches DB seed) ─────────────────────
 const EXP_CATEGORIES = [
   { name: "Stock & Supplies", color: "#a78bfa" },
   { name: "Staff Wages",      color: "#4caf7d" },
@@ -19,7 +19,7 @@ const EXP_CATEGORIES = [
   { name: "Miscellaneous",    color: "#5c5444" },
 ];
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ─────────────────────────────────────────────────────
 export default function ReportsPage() {
   const [year, setYear] = useState(CURRENT_YEAR);
   const { data, loading, error } = usePnL(year);
@@ -79,10 +79,10 @@ export default function ReportsPage() {
 
       {/* KPI strip */}
       <div className="pp-stats-grid" style={{ marginBottom: 18 }}>
-        <StatCard label="Total Revenue"   value={formatCurrency(totalIncome)}   delta="â†‘ 23% vs last year" dir="up"   loading={loading} highlight />
-        <StatCard label="Total Expenses"  value={formatCurrency(totalExpenses)} delta="â†‘ 18% vs last year" dir="down"  loading={loading} danger />
-        <StatCard label="Net Profit"      value={formatCurrency(netProfit)}     delta="â†‘ 27% vs last year" dir="up"   loading={loading} positive />
-        <StatCard label="Profit Margin"   value={`${margin}%`}                  delta="â†‘ 2pts vs last year" dir="up"  loading={loading} />
+        <StatCard label="Total Revenue"   value={formatCurrency(totalIncome)}   delta="↑ 23% vs last year" dir="up"   loading={loading} highlight />
+        <StatCard label="Total Expenses"  value={formatCurrency(totalExpenses)} delta="↑ 18% vs last year" dir="down"  loading={loading} danger />
+        <StatCard label="Net Profit"      value={formatCurrency(netProfit)}     delta="↑ 27% vs last year" dir="up"   loading={loading} positive />
+        <StatCard label="Profit Margin"   value={`${margin}%`}                  delta="↑ 2pts vs last year" dir="up"  loading={loading} />
       </div>
 
       {/* Charts row */}
@@ -147,9 +147,10 @@ export default function ReportsPage() {
   );
 }
 
-// â”€â”€â”€ P&L bar chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── P&L bar chart ────────────────────────────────────────────
 function PnLBarChart({ months, loading }: { months: MonthlyPnL[]; loading: boolean }) {
-  const maxVal = Math.max(...months.map((m) => m.income), 1);
+  const maxVal = Math.max(...months.map((m) => Math.max(m.income, m.expenses)), 1);
+  const chartMinWidth = Math.max(months.length * 40, 420);
 
   return (
     <div className="pp-card" style={{ padding: 0 }}>
@@ -159,49 +160,64 @@ function PnLBarChart({ months, loading }: { months: MonthlyPnL[]; loading: boole
       </div>
       {loading ? (
         <div className="pp-skeleton" style={{ height: 160, margin: "16px 20px" }} />
+      ) : months.length === 0 ? (
+        <div className="pp-empty" style={{ padding: "18px 20px" }}>
+          <div className="pp-empty-title">No P&amp;L data yet</div>
+          <p className="pp-empty-sub">Monthly revenue and expense trends will show once finance activity is recorded.</p>
+        </div>
       ) : (
-        <>
-          <div style={{
-            padding: "16px 20px 8px",
-            display: "flex",
-            alignItems: "flex-end",
-            gap: 6,
-            height: 140,
-          }}>
-            {months.map((m) => {
-              const incH = Math.round((m.income / maxVal) * 110) + 4;
-              const expH = Math.round((m.expenses / maxVal) * 110) + 4;
-              return (
-                <div
-                  key={m.month}
-                  style={{ flex: 1, display: "flex", gap: 2, alignItems: "flex-end" }}
-                  title={`${m.month_label}: Revenue GHS ${m.income.toLocaleString()} Â· Expenses GHS ${m.expenses.toLocaleString()}`}
-                >
-                  <div style={{
-                    flex: 1, height: incH,
-                    borderRadius: "3px 3px 0 0",
-                    background: "var(--pp-gold)",
-                    transition: "height 0.4s cubic-bezier(0.34,1.56,0.64,1)",
-                  }} />
-                  <div style={{
-                    flex: 1, height: expH,
-                    borderRadius: "3px 3px 0 0",
-                    background: "var(--pp-red)",
-                    opacity: 0.75,
-                    transition: "height 0.4s cubic-bezier(0.34,1.56,0.64,1)",
-                  }} />
-                </div>
-              );
-            })}
-          </div>
-          <div style={{
-            display: "flex", justifyContent: "space-between",
-            padding: "4px 20px 8px", fontSize: 10, color: "var(--pp-text-3)",
-          }}>
-            {months.map((m) => <span key={m.month}>{m.month_label.slice(0, 3)}</span>)}
+        <div style={{ overflowX: "auto", paddingBottom: 2 }}>
+          <div style={{ minWidth: chartMinWidth }}>
+            <div style={{
+              padding: "16px 20px 8px",
+              display: "flex",
+              alignItems: "flex-end",
+              gap: 8,
+              height: 140,
+            }}>
+              {months.map((m) => {
+                const incH = Math.round((m.income / maxVal) * 110) + 4;
+                const expH = Math.round((m.expenses / maxVal) * 110) + 4;
+                return (
+                  <div
+                    key={m.month}
+                    style={{ flex: "0 0 32px", display: "flex", gap: 3, alignItems: "flex-end" }}
+                    title={`${m.month_label}: Revenue GHS ${m.income.toLocaleString()} · Expenses GHS ${m.expenses.toLocaleString()}`}
+                  >
+                    <div style={{
+                      flex: 1, height: incH,
+                      borderRadius: "3px 3px 0 0",
+                      background: "var(--pp-gold)",
+                      transition: "height 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+                    }} />
+                    <div style={{
+                      flex: 1, height: expH,
+                      borderRadius: "3px 3px 0 0",
+                      background: "var(--pp-red)",
+                      opacity: 0.75,
+                      transition: "height 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+                    }} />
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{
+              display: "flex",
+              gap: 8,
+              padding: "4px 20px 8px",
+              fontSize: 10,
+              color: "var(--pp-text-3)",
+            }}>
+              {months.map((m) => (
+                <span key={m.month} style={{ flex: "0 0 32px", textAlign: "center" }}>
+                  {m.month_label.slice(0, 3)}
+                </span>
+              ))}
+            </div>
           </div>
           <div style={{
             display: "flex", gap: 14, padding: "0 20px 14px",
+            flexWrap: "wrap",
             fontSize: 11, color: "var(--pp-text-2)",
           }}>
             <span>
@@ -213,13 +229,13 @@ function PnLBarChart({ months, loading }: { months: MonthlyPnL[]; loading: boole
               Expenses
             </span>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
 }
 
-// â”€â”€â”€ Expense donut â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Expense donut ────────────────────────────────────────────
 function ExpenseDonut({ totalExpenses }: { totalExpenses: number }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const size = 120;
@@ -287,7 +303,7 @@ function ExpenseDonut({ totalExpenses }: { totalExpenses: number }) {
   );
 }
 
-// â”€â”€â”€ Booking profitability â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Booking profitability ────────────────────────────────────
 // Booking profitability
 function BookingProfitabilityCard() {
   const { data, loading, error } = useTopBookingProfitability(5);
@@ -355,7 +371,7 @@ function BookingProfitabilityCard() {
   );
 }
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpers ──────────────────────────────────────────────────
 function StatCard({ label, value, delta, dir, loading, highlight, danger, positive }: {
   label: string; value: string; delta: string;
   dir: "up" | "down"; loading: boolean;

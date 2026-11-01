@@ -84,6 +84,10 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+function isLoginRequest(config: AxiosRequestConfig) {
+  return config.url?.endsWith("/auth/login") ?? false;
+}
+
 // ─── Response interceptor — handle 401, auto-refresh ─────────
 let isRefreshing = false;
 let refreshQueue: Array<{
@@ -109,8 +113,12 @@ api.interceptors.response.use(
       _retry?: boolean;
     };
 
-    // Only retry on 401, and only once
-    if (error.response?.status !== 401 || originalRequest._retry) {
+    // Only retry on 401, and only once. A failed sign-in has no session to refresh.
+    if (
+      error.response?.status !== 401 ||
+      originalRequest._retry ||
+      isLoginRequest(originalRequest)
+    ) {
       return Promise.reject(normaliseError(error));
     }
 
@@ -156,7 +164,7 @@ api.interceptors.response.use(
     } catch (refreshError) {
       processRefreshQueue(refreshError, null);
       handleAuthFailure();
-      return Promise.reject(refreshError);
+      return Promise.reject(normaliseError(refreshError));
     } finally {
       isRefreshing = false;
     }
@@ -186,14 +194,31 @@ export function normaliseError(error: unknown): ApiError {
     const message =
       typeof detail === "string"
         ? detail
-        : error.response?.data?.message ?? error.message ?? "An error occurred";
+        : validationMessage(detail) ??
+          error.response?.data?.message ??
+          error.message ??
+          "An error occurred";
     return { message, status, detail };
+  }
+  if (isApiError(error)) {
+    return error;
   }
   return {
     message: error instanceof Error ? error.message : "An unknown error occurred",
     status: null,
     detail: null,
   };
+}
+
+// FastAPI reports invalid input as a list of { loc, msg } entries
+function validationMessage(detail: unknown): string | null {
+  if (!Array.isArray(detail) || detail.length === 0) return null;
+  return detail
+    .map((item: { loc?: unknown[]; msg?: string }) => {
+      const field = item.loc?.[item.loc.length - 1];
+      return field && field !== "body" ? `${field}: ${item.msg}` : item.msg;
+    })
+    .join("; ");
 }
 
 export function isApiError(error: unknown): error is ApiError {
@@ -233,6 +258,18 @@ export function setPortalAccessToken(token: string | null) {
   portalAccessToken = token;
 }
 
+export function getPortalRefreshToken() {
+  if (typeof window === "undefined") return null;
+  const local = localStorage.getItem("pp_portal_refresh");
+  if (local) return local;
+  const cookie = getCookie("pp_portal_refresh");
+  if (cookie) {
+    localStorage.setItem("pp_portal_refresh", cookie);
+    return cookie;
+  }
+  return null;
+}
+
 export function setPortalRefreshToken(token: string | null) {
   if (typeof window === "undefined") return;
   if (token) {
@@ -244,6 +281,11 @@ export function setPortalRefreshToken(token: string | null) {
   }
 }
 
+export function clearPortalTokens() {
+  setPortalAccessToken(null);
+  setPortalRefreshToken(null);
+}
+
 portalApi.interceptors.request.use((config) => {
   if (portalAccessToken) {
     config.headers.Authorization = `Bearer ${portalAccessToken}`;
@@ -251,9 +293,91 @@ portalApi.interceptors.request.use((config) => {
   return config;
 });
 
+let isPortalRefreshing = false;
+let portalRefreshQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (err: unknown) => void;
+}> = [];
+
+function processPortalRefreshQueue(error: unknown, token: string | null) {
+  portalRefreshQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else if (token) {
+      resolve(token);
+    }
+  });
+  portalRefreshQueue = [];
+}
+
 portalApi.interceptors.response.use(
   (r) => r,
-  (error: AxiosError) => Promise.reject(normaliseError(error))
+  async (error: AxiosError) => {
+    const originalRequest = error.config as AxiosRequestConfig & {
+      _retry?: boolean;
+    };
+
+    // After a full page load the access token is gone from memory, and a request
+    // with no token is answered 403 rather than 401.
+    const needsToken =
+      error.response?.status === 401 ||
+      (error.response?.status === 403 && !portalAccessToken);
+
+    if (!needsToken || originalRequest._retry || isLoginRequest(originalRequest)) {
+      return Promise.reject(normaliseError(error));
+    }
+
+    if (isPortalRefreshing) {
+      return new Promise((resolve, reject) => {
+        portalRefreshQueue.push({ resolve, reject });
+      }).then((token) => {
+        if (originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+        }
+        return portalApi(originalRequest);
+      });
+    }
+
+    originalRequest._retry = true;
+    isPortalRefreshing = true;
+
+    const refreshToken = getPortalRefreshToken();
+    if (!refreshToken) {
+      isPortalRefreshing = false;
+      processPortalRefreshQueue(error, null);
+      clearPortalTokens();
+      if (typeof window !== "undefined") {
+        window.location.href = "/portal/login";
+      }
+      return Promise.reject(normaliseError(error));
+    }
+
+    try {
+      const { data } = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/portal/auth/refresh`,
+        { refresh_token: refreshToken }
+      );
+
+      const newAccessToken: string = data.access_token;
+      setPortalAccessToken(newAccessToken);
+      processPortalRefreshQueue(null, newAccessToken);
+
+      if (originalRequest.headers) {
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+      }
+
+      return portalApi(originalRequest);
+    } catch (refreshError) {
+      processPortalRefreshQueue(refreshError, null);
+      clearPortalTokens();
+      if (typeof window !== "undefined") {
+        window.location.href = "/portal/login";
+      }
+      return Promise.reject(normaliseError(refreshError));
+    } finally {
+      isPortalRefreshing = false;
+    }
+  }
 );
 
 export default api;

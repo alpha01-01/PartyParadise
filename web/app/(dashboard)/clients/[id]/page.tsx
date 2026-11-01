@@ -1,8 +1,9 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { normaliseError } from "@/lib/api";
 import { useClient, addInteraction } from "@/hooks";
 import { formatCurrency, formatDate, timeAgo, initials, cn } from "@/lib/utils";
 import type { ClientBookingSummary, ClientInvoiceSummary, Interaction } from "@/lib/types";
@@ -61,6 +62,13 @@ export default function ClientDetailPage() {
   const [logText, setLogText] = useState("");
   const [logging, setLogging] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const [portalInviteError, setPortalInviteError] = useState<string | null>(null);
+  const [portalInviteResult, setPortalInviteResult] = useState<{
+    email: string;
+    portal_url: string;
+    delivery_status: string;
+    setup_url?: string | null;
+  } | null>(null);
 
   async function handleLogInteraction(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -85,12 +93,21 @@ export default function ClientDetailPage() {
 
   async function handlePortalInvite() {
     setInviting(true);
+    setPortalInviteError(null);
+    setPortalInviteResult(null);
     try {
       const { default: api } = await import("@/lib/api");
-      await api.post(`/portal/clients/${id}/invite`);
+      const { data } = await api.post<{
+        message: string;
+        email: string;
+        portal_url: string;
+        delivery_status: string;
+        setup_url?: string | null;
+      }>(`/portal/clients/${id}/invite`);
+      setPortalInviteResult(data);
       await refresh();
-    } catch {
-      // Leave the page stable; retry remains available.
+    } catch (err) {
+      setPortalInviteError(normaliseError(err).message);
     } finally {
       setInviting(false);
     }
@@ -311,6 +328,43 @@ export default function ClientDetailPage() {
               <span className="pp-card-title">Client Portal</span>
               <span className="pp-card-link">Access and self-serve readiness</span>
             </div>
+            {portalInviteError && (
+              <div className="pp-alert pp-alert-error" style={{ margin: "12px 18px 0" }}>
+                {portalInviteError}
+              </div>
+            )}
+            {portalInviteResult && (
+              <div
+                style={{
+                  margin: "12px 18px 0",
+                  padding: "12px 14px",
+                  borderRadius: "var(--pp-radius-sm)",
+                  border: "1px solid rgba(76,175,125,0.2)",
+                  background: "rgba(76,175,125,0.08)",
+                  display: "grid",
+                  gap: 6,
+                  fontSize: 12.5,
+                }}
+              >
+                <div style={{ color: "var(--pp-green)", fontWeight: 600 }}>
+                  Portal invite prepared for {portalInviteResult.email}
+                </div>
+                <div style={{ color: "var(--pp-text-2)" }}>
+                  Access URL: <a href={portalInviteResult.portal_url} target="_blank" rel="noreferrer" style={{ color: "var(--pp-gold)" }}>{portalInviteResult.portal_url}</a>
+                </div>
+                {portalInviteResult.setup_url && (
+                  <div style={{ color: "var(--pp-text-2)", wordBreak: "break-all" }}>
+                    Password setup link: <a href={portalInviteResult.setup_url} target="_blank" rel="noreferrer">{portalInviteResult.setup_url}</a>
+                  </div>
+                )}
+                <div style={{ color: "var(--pp-text-3)", fontSize: 11.5 }}>
+                  {portalInviteResult.delivery_status === "email_sent"
+                    ? "Invitation email was sent successfully."
+                    : "The email was not delivered, so share this link with the client. It works once and expires in 48 hours."}
+                </div>
+              </div>
+            )}
+            <ClientEnquiries clientId={id} />
             {client.portal_account ? (
               <>
                 <DetailField label="Status" value={client.portal_account.is_active ? "Active" : "Inactive"} green={client.portal_account.is_active} />
@@ -421,6 +475,35 @@ function ErrorState({ error }: { error: string | null }) {
       <Link href="/clients" className="pp-btn pp-btn-ghost" style={{ marginTop: 12 }}>
         Back to clients
       </Link>
+    </div>
+  );
+}
+
+function ClientEnquiries({ clientId }: { clientId: string }) {
+  const [enquiries, setEnquiries] = useState<{ id: string; subject: string; message: string; status: string }[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    import("@/lib/api").then(({ default: api }) =>
+      api
+        .get(`/portal/staff/inquiries?client_id=${clientId}`)
+        .then(({ data }) => { if (!cancelled) setEnquiries(data); })
+        .catch(() => undefined)
+    );
+    return () => { cancelled = true; };
+  }, [clientId]);
+
+  if (enquiries.length === 0) return null;
+
+  return (
+    <div style={{ display: "grid", gap: 8, fontSize: 12.5 }}>
+      <strong>Portal enquiries</strong>
+      {enquiries.map((enquiry) => (
+        <div key={enquiry.id}>
+          <div style={{ color: "var(--pp-text)" }}>{enquiry.subject}</div>
+          <div style={{ color: "var(--pp-text-2)" }}>{enquiry.message}</div>
+        </div>
+      ))}
     </div>
   );
 }

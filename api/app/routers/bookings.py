@@ -3,13 +3,15 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import extract, or_
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.dependencies import require_permission
+from app.schemas.types import Money
+from app.dependencies import has_permission, require_permission
+from app.utils.audit import record_audit
 from app.utils.references import generate_reference
 
 router = APIRouter()
@@ -20,7 +22,7 @@ class BookingServiceSchema(BaseModel):
     booking_id: Optional[UUID] = None
     service: str
     description: Optional[str] = None
-    price: Decimal
+    price: Money = Field(..., ge=0)
     pricing_type: str = "fixed"
 
     model_config = {"from_attributes": True}
@@ -56,9 +58,9 @@ class BookingEquipmentResponse(BaseModel):
 class BookingInvoiceSummary(BaseModel):
     id: UUID
     reference: str
-    total_amount: Decimal
-    amount_paid: Decimal
-    amount_due: Decimal
+    total_amount: Money
+    amount_paid: Money
+    amount_due: Money
     due_date: Optional[date] = None
 
 
@@ -67,6 +69,13 @@ class BookingContractSummary(BaseModel):
     reference: str
     status: str
     signed_at: Optional[datetime] = None
+
+
+def _check_times(data):
+    # An end time before the start is a party that runs past midnight
+    if data.start_time and data.start_time == data.end_time:
+        raise ValueError("End time must be different from start time")
+    return data
 
 
 class CreateBookingRequest(BaseModel):
@@ -78,9 +87,13 @@ class CreateBookingRequest(BaseModel):
     venue_name: Optional[str] = None
     venue_address: Optional[str] = None
     event_type: Optional[str] = None
-    guest_count: Optional[int] = None
+    guest_count: Optional[int] = Field(None, ge=0)
     special_requests: Optional[str] = None
     services: List[BookingServiceSchema] = []
+
+    @model_validator(mode="after")
+    def times_must_differ(self):
+        return _check_times(self)
 
 
 class UpdateBookingRequest(BaseModel):
@@ -90,8 +103,12 @@ class UpdateBookingRequest(BaseModel):
     venue_name: Optional[str] = None
     venue_address: Optional[str] = None
     event_type: Optional[str] = None
-    guest_count: Optional[int] = None
+    guest_count: Optional[int] = Field(None, ge=0)
     special_requests: Optional[str] = None
+
+    @model_validator(mode="after")
+    def times_must_differ(self):
+        return _check_times(self)
 
 
 class UpdateStatusRequest(BaseModel):
@@ -112,7 +129,7 @@ class AssignStaffRequest(BaseModel):
 
 class AllocateEquipmentRequest(BaseModel):
     equipment_id: UUID
-    quantity: int = 1
+    quantity: int = Field(1, ge=1)
 
 
 class BookingResponse(BaseModel):
@@ -142,13 +159,22 @@ class BookingResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-VALID_TRANSITIONS = {
-    "inquiry": ["quoted", "cancelled"],
-    "quoted": ["confirmed", "cancelled"],
-    "confirmed": ["in_progress", "cancelled"],
-    "in_progress": ["completed"],
-    "completed": [],
-    "cancelled": [],
+STATUS_MOVES = {
+    "inquiry":     {"quoted", "confirmed", "cancelled"},
+    "quoted":      {"inquiry", "confirmed", "cancelled"},
+    "confirmed":   {"quoted", "in_progress", "cancelled"},
+    "in_progress": {"confirmed", "completed", "cancelled"},
+    "completed":   set(),
+    "cancelled":   {"inquiry"},
+}
+
+VALID_STATUSES = {
+    "inquiry",
+    "quoted",
+    "confirmed",
+    "in_progress",
+    "completed",
+    "cancelled",
 }
 
 
@@ -285,7 +311,7 @@ def _booking_to_response(
 
 def check_equipment_conflict(db: Session, equipment_id: UUID, event_date: date, exclude_booking_id: UUID = None) -> bool:
     from app.models.bookings import Booking
-    from app.models.inventory import BookingEquipment
+    from app.models.bookings import BookingEquipment
 
     query = (
         db.query(Booking)
@@ -299,6 +325,19 @@ def check_equipment_conflict(db: Session, equipment_id: UUID, event_date: date, 
     if exclude_booking_id:
         query = query.filter(Booking.id != exclude_booking_id)
     return query.first() is not None
+
+
+def ensure_equipment_free(db: Session, booking, event_date: date) -> None:
+    """Equipment reserved while enquiring must still be free once a booking is firm."""
+    from app.models.bookings import BookingEquipment
+
+    allocations = db.query(BookingEquipment).filter(BookingEquipment.booking_id == booking.id).all()
+    for allocation in allocations:
+        if check_equipment_conflict(db, allocation.equipment_id, event_date, exclude_booking_id=booking.id):
+            raise HTTPException(
+                status_code=409,
+                detail="Allocated equipment is already booked for another event on that date",
+            )
 
 
 @router.get("")
@@ -384,6 +423,9 @@ def create_booking(
 ):
     from app.models.bookings import Booking, BookingService
 
+    if data.event_date < date.today():
+        raise HTTPException(status_code=422, detail="Event date cannot be in the past")
+
     booking = Booking(
         client_id=data.client_id,
         created_by=current_user.id,
@@ -429,7 +471,7 @@ def update_booking(
     booking_id: UUID,
     data: UpdateBookingRequest,
     db: Session = Depends(get_db),
-    _=Depends(require_permission("bookings:update")),
+    current_user=Depends(require_permission("bookings:update")),
 ):
     from app.models.bookings import Booking
 
@@ -437,8 +479,26 @@ def update_booking(
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
-    for field, value in data.model_dump(exclude_none=True).items():
+    updates = data.model_dump(exclude_none=True)
+    new_date = updates.get("event_date")
+    if new_date and new_date != booking.event_date:
+        if new_date < date.today():
+            raise HTTPException(status_code=422, detail="Event date cannot be in the past")
+        if booking.status in ("confirmed", "in_progress"):
+            ensure_equipment_free(db, booking, new_date)
+
+    before = {field: getattr(booking, field) for field in updates}
+    for field, value in updates.items():
         setattr(booking, field, value)
+    record_audit(
+        db,
+        user_id=current_user.id,
+        action="edit",
+        module="bookings",
+        entity_type="booking",
+        entity_id=booking.id,
+        changes={"before": before, "after": updates},
+    )
     db.commit()
 
     booking = _base_booking_query(db).filter(Booking.id == booking_id).first()
@@ -458,12 +518,22 @@ def update_status(
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
-    allowed = VALID_TRANSITIONS.get(booking.status, [])
-    if data.status not in allowed:
+    if data.status not in VALID_STATUSES:
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot transition from '{booking.status}' to '{data.status}'",
+            detail=f"Invalid booking status '{data.status}'",
         )
+    if data.status == booking.status:
+        booking = _base_booking_query(db).filter(Booking.id == booking_id).first()
+        return _booking_to_response(booking, include_services=True, include_detail=True)
+
+    if data.status not in STATUS_MOVES[booking.status]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"A {booking.status.replace('_', ' ')} booking cannot move to {data.status.replace('_', ' ')}",
+        )
+    if data.status in ("confirmed", "in_progress"):
+        ensure_equipment_free(db, booking, booking.event_date)
 
     booking.status = data.status
 
@@ -502,6 +572,47 @@ def add_note(
         is_internal=data.is_internal,
     )
     db.add(note)
+    db.commit()
+    db.refresh(note)
+    return BookingNoteResponse(
+        id=note.id,
+        user_id=note.user_id,
+        note=note.note,
+        is_internal=note.is_internal,
+        created_at=note.created_at,
+        user_name=getattr(note.user, "full_name", None),
+    )
+
+
+# PATCH endpoint to update a booking note
+@router.patch("/{booking_id}/notes/{note_id}", status_code=200)
+def update_note(
+    booking_id: UUID,
+    note_id: UUID = Path(..., description="ID of the note to update"),
+    data: BookingNoteRequest = Body(...),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("bookings:update")),
+):
+    from app.models.bookings import BookingNote
+    note = db.query(BookingNote).filter(BookingNote.id == note_id, BookingNote.booking_id == booking_id).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    # Only allow the author or an admin to edit
+    if note.user_id != current_user.id and not has_permission(db, current_user, "users:update"):
+        raise HTTPException(status_code=403, detail="Not allowed to edit this note")
+    before = {"note": note.note, "is_internal": note.is_internal}
+    note.note = data.note
+    note.is_internal = data.is_internal
+    record_audit(
+        db,
+        user_id=current_user.id,
+        action="edit",
+        module="bookings",
+        entity_type="booking_note",
+        entity_id=note.id,
+        changes={"before": before, "after": data.model_dump()},
+        extra={"booking_id": booking_id},
+    )
     db.commit()
     db.refresh(note)
     return BookingNoteResponse(

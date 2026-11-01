@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Integer, Numeric, Date
+from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Integer, Numeric, Date, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -23,6 +23,13 @@ class ContractTemplate(Base):
 
 class Contract(Base):
     __tablename__ = "contracts"
+    __table_args__ = (
+        Index("idx_contracts_created_by", "created_by"),
+        Index("idx_contracts_template_id", "template_id"),
+        Index("idx_contracts_booking_id", "booking_id"),
+        Index("idx_contracts_client_id", "client_id"),
+        Index("idx_contracts_status", "status"),
+    )
 
     id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     booking_id     = Column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="RESTRICT"), nullable=False)
@@ -54,6 +61,11 @@ class Contract(Base):
 
 class Document(Base):
     __tablename__ = "documents"
+    __table_args__ = (
+        Index("idx_documents_uploaded_by", "uploaded_by"),
+        Index("idx_documents_booking_id", "booking_id"),
+        Index("idx_documents_client_id", "client_id"),
+    )
 
     id                  = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     booking_id          = Column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="SET NULL"), nullable=True)

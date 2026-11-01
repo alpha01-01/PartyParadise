@@ -20,6 +20,8 @@ HTTP response or upload to Supabase Storage.
 from __future__ import annotations
 
 import io
+
+from app.utils.shop_sales import display_notes
 import os
 from datetime import datetime
 from typing import Optional
@@ -484,7 +486,7 @@ def _invoice_ctx(inv) -> dict:
         "total_amount":    float(inv.total_amount),
         "amount_paid":     float(inv.amount_paid or 0),
         "amount_due":      float(inv.total_amount - (inv.amount_paid or 0)),
-        "notes":           inv.notes,
+        "notes":           display_notes(inv.notes),
         "booking_reference": getattr(getattr(inv, "booking", None), "reference", None),
         "event_date":      str(inv.booking.event_date) if getattr(inv, "booking", None) else None,
     }

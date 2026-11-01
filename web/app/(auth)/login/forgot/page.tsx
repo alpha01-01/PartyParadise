@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import api from "@/lib/api";
+import api, { normaliseError } from "@/lib/api";
 
 type View = "form" | "sent";
 
@@ -20,9 +20,8 @@ export default function ForgotPasswordPage() {
     try {
       await api.post("/auth/forgot-password", { email });
       setView("sent");
-    } catch {
-      // Show success regardless — don't leak whether email exists
-      setView("sent");
+    } catch (err) {
+      setError(normaliseError(err).message);
     } finally {
       setLoading(false);
     }
@@ -39,8 +38,8 @@ export default function ForgotPasswordPage() {
               Check your inbox
             </h2>
             <p className="login-form-sub" style={{ textAlign: "center" }}>
-              We sent a reset link to{" "}
-              <strong style={{ color: "var(--pp-text)" }}>{email}</strong>.
+              If <strong style={{ color: "var(--pp-text)" }}>{email}</strong> has an
+              account, we sent it a reset link.
               <br />
               Check your spam folder if you don't see it.
             </p>

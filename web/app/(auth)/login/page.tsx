@@ -12,7 +12,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) router.replace("/");
@@ -121,16 +120,6 @@ export default function LoginPage() {
             </div>
 
             <div className="login-row">
-              <label className="login-checkbox-wrap">
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                  style={{ position: "absolute", opacity: 0, width: 0 }}
-                />
-                <div className={`login-checkbox${remember ? " login-checkbox--on" : ""}`} />
-                <span className="login-checkbox-label">Remember me</span>
-              </label>
               <Link href="/login/forgot" className="login-forgot">
                 Forgot password?
               </Link>

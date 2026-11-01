@@ -12,6 +12,7 @@ from app.models.auth import (       # noqa: F401
     RolePermission,
     UserSession,
     AuditLog,
+    ReferenceCounter,
 )
 
 from app.models.clients import (    # noqa: F401
@@ -82,7 +83,7 @@ from app.models.portal import (     # noqa: F401
 __all__ = [
     # Auth
     "User", "Role", "Permission", "UserRole", "RolePermission",
-    "UserSession", "AuditLog",
+    "UserSession", "AuditLog", "ReferenceCounter",
     # Clients
     "Client", "ClientAddress", "Interaction", "Tag", "ClientTag",
     # Bookings

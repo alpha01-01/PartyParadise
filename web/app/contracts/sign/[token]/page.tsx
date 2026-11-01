@@ -439,9 +439,13 @@ function ContractBody({ contract }: { contract: ContractData }) {
       <div
         className="pp-contract-text"
         dangerouslySetInnerHTML={{
-          // The body is plain text stored in the DB.
-          // We format section headers and key fields server-side.
+          // The body is plain text stored in the DB, and may hold staff-typed
+          // terms, so it is escaped before line breaks become markup.
           __html: contract.body
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
             .replace(/\n\n/g, "</p><p>")
             .replace(/\n/g, "<br/>"),
         }}

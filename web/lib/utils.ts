@@ -1,20 +1,20 @@
-﻿// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// lib/utils.ts â€” shared formatting and helper utilities
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+﻿// ─────────────────────────────────────────────────────────────
+// lib/utils.ts — shared formatting and helper utilities
+// ─────────────────────────────────────────────────────────────
 
-// â”€â”€â”€ Currency â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Currency ─────────────────────────────────────────────────
 /**
  * Format a number as Ghana Cedis.
- * formatCurrency(4800)      â†’ "GHS 4,800.00"
- * formatCurrency(0)         â†’ "â€”"
- * formatCurrency(1250.5)    â†’ "GHS 1,250.50"
+ * formatCurrency(4800)      → "GHS 4,800.00"
+ * formatCurrency(0)         → "—"
+ * formatCurrency(1250.5)    → "GHS 1,250.50"
  */
 export function formatCurrency(
   amount: number | null | undefined,
   options: { showEmpty?: boolean; compact?: boolean } = {}
 ): string {
   if (amount === null || amount === undefined || (amount === 0 && !options.showEmpty)) {
-    return "â€”";
+    return "—";
   }
 
   if (options.compact && amount >= 1_000) {
@@ -28,22 +28,22 @@ export function formatCurrency(
   })}`;
 }
 
-// â”€â”€â”€ Dates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Dates ────────────────────────────────────────────────────
 /**
  * Format a date string for display.
- * formatDate("2025-03-22")            â†’ "22 Mar 2025"
- * formatDate("2025-03-22", "short")   â†’ "22 Mar"
- * formatDate("2025-03-22", "long")    â†’ "Saturday, 22 March 2025"
- * formatDate("2025-03-22", "month")   â†’ "March 2025"
+ * formatDate("2025-03-22")            → "22 Mar 2025"
+ * formatDate("2025-03-22", "short")   → "22 Mar"
+ * formatDate("2025-03-22", "long")    → "Saturday, 22 March 2025"
+ * formatDate("2025-03-22", "month")   → "March 2025"
  */
 export function formatDate(
   dateStr: string | null | undefined,
   style: "default" | "short" | "long" | "month" | "iso" = "default"
 ): string {
-  if (!dateStr) return "â€”";
+  if (!dateStr) return "—";
 
   const date = new Date(dateStr + "T00:00:00"); // prevent TZ shift
-  if (isNaN(date.getTime())) return "â€”";
+  if (isNaN(date.getTime())) return "—";
 
   switch (style) {
     case "short":
@@ -65,12 +65,12 @@ export function formatDate(
 
 /**
  * Format a datetime string (e.g. from timestamps).
- * formatDateTime("2025-03-22T14:30:00Z") â†’ "22 Mar 2025, 14:30"
+ * formatDateTime("2025-03-22T14:30:00Z") → "22 Mar 2025, 14:30"
  */
 export function formatDateTime(dateStr: string | null | undefined): string {
-  if (!dateStr) return "â€”";
+  if (!dateStr) return "—";
   const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return "â€”";
+  if (isNaN(date.getTime())) return "—";
   return date.toLocaleString("en-GH", {
     day: "numeric", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
@@ -79,10 +79,10 @@ export function formatDateTime(dateStr: string | null | undefined): string {
 
 /**
  * Return relative time for recent timestamps.
- * timeAgo("2025-03-22T14:00:00Z") â†’ "2 hours ago"
+ * timeAgo("2025-03-22T14:00:00Z") → "2 hours ago"
  */
 export function timeAgo(dateStr: string | null | undefined): string {
-  if (!dateStr) return "â€”";
+  if (!dateStr) return "—";
   const date = new Date(dateStr);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -101,7 +101,7 @@ export function timeAgo(dateStr: string | null | undefined): string {
 
 /**
  * Days until a future date (negative if past).
- * daysUntil("2025-03-22") â†’ 8
+ * daysUntil("2025-03-22") → 8
  */
 export function daysUntil(dateStr: string | null | undefined): number | null {
   if (!dateStr) return null;
@@ -111,7 +111,7 @@ export function daysUntil(dateStr: string | null | undefined): number | null {
   return Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// â”€â”€â”€ Booking / Invoice status helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Booking / Invoice status helpers ─────────────────────────
 export const BOOKING_STATUS_LABELS: Record<string, string> = {
   inquiry:     "Inquiry",
   quoted:      "Quoted",
@@ -155,11 +155,11 @@ export const SERVICE_TYPE_LABELS: Record<string, string> = {
   combo:              "Combo",
 };
 
-// â”€â”€â”€ Initials â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Initials ─────────────────────────────────────────────────
 /**
  * Get initials from a full name.
- * initials("Ama Asante") â†’ "AA"
- * initials("Kwame")      â†’ "KW"
+ * initials("Ama Asante") → "AA"
+ * initials("Kwame")      → "KW"
  */
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -167,16 +167,16 @@ export function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-// â”€â”€â”€ Class name helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Class name helper ────────────────────────────────────────
 /**
- * Simple cn() â€” merge class names, filtering falsy values.
- * cn("pp-btn", isActive && "pp-btn--active") â†’ "pp-btn pp-btn--active"
+ * Simple cn() — merge class names, filtering falsy values.
+ * cn("pp-btn", isActive && "pp-btn--active") → "pp-btn pp-btn--active"
  */
 export function cn(...classes: (string | boolean | null | undefined)[]): string {
   return classes.filter(Boolean).join(" ");
 }
 
-// â”€â”€â”€ Debounce â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Debounce ─────────────────────────────────────────────────
 export function debounce<T extends (...args: unknown[]) => void>(
   fn: T,
   delay: number
@@ -188,14 +188,14 @@ export function debounce<T extends (...args: unknown[]) => void>(
   };
 }
 
-// â”€â”€â”€ Truncate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Truncate ─────────────────────────────────────────────────
 export function truncate(str: string | null | undefined, max: number): string {
-  if (!str) return "â€”";
+  if (!str) return "—";
   if (str.length <= max) return str;
-  return str.slice(0, max).trimEnd() + "â€¦";
+  return str.slice(0, max).trimEnd() + "…";
 }
 
-// â”€â”€â”€ Payment method labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Payment method labels ────────────────────────────────────
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   momo_mtn:       "MTN MoMo",
   momo_vodafone:  "Vodafone Cash",

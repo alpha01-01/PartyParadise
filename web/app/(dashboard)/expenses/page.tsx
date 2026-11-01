@@ -1,14 +1,149 @@
 ﻿"use client";
-
 import { useState } from "react";
 import Link from "next/link";
-import { useExpenses, createExpense as apiCreateExpense, useExpenseCategories } from "@/hooks";
+import { useExpenses, useExpenseCategories } from "@/hooks";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import api, { normaliseError } from "@/lib/api";
 import { downloadCsv } from "@/lib/export";
-import type { PaymentMethod } from "@/lib/types";
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Edit expense modal ──────────────────────────────────────────────
+
+function EditExpenseModal({ categories, expense, onClose, onSaved }: {
+  categories: any[];
+  expense: any;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState<ExpenseForm>({
+    description:    expense.description || "",
+    category_id:    expense.category_id || expense.category?.id || categories[0]?.id || "",
+    amount:         String(expense.amount ?? ""),
+    payment_method: expense.payment_method || "momo_mtn",
+    expense_date:   expense.expense_date?.slice(0, 10) || new Date().toISOString().split("T")[0],
+    booking_ref:    expense.booking_id || "",
+    notes:          expense.notes || "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+
+  function set(field: keyof ExpenseForm, value: string) {
+    setForm((f) => ({ ...f, [field]: value }));
+    setError("");
+  }
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.description || !form.amount) {
+      setError("Description and amount are required");
+      return;
+    }
+    const amount = parseFloat(form.amount);
+    if (isNaN(amount) || amount <= 0) {
+      setError("Please enter a valid amount");
+      return;
+    }
+    const bookingId = normaliseBookingId(form.booking_ref);
+    if (bookingId === "__invalid__") {
+      setError("Linked booking must be a valid booking ID");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await api.patch(`/accounting/expenses/${expense.id}`, {
+        category_id:    form.category_id,
+        description:    form.description,
+        amount,
+        payment_method: form.payment_method,
+        expense_date:   form.expense_date,
+        booking_id:     bookingId,
+        notes:          form.notes || undefined,
+      });
+      onSaved();
+    } catch (err) {
+      setError(normaliseError(err).message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="pp-modal-overlay" onClick={onClose}>
+      <div className="pp-modal" onClick={(ev) => ev.stopPropagation()}>
+        <div className="pp-modal-header">
+          <span className="pp-modal-title">Edit Expense</span>
+          <button className="pp-dp-close" style={{ position: "static" }} onClick={onClose}>
+            <CloseIcon />
+          </button>
+        </div>
+        <form onSubmit={handleSave}>
+          <div className="pp-modal-body">
+            {error && <div className="pp-field-error">{error}</div>}
+
+            <div className="pp-field">
+              <label className="pp-field-label">Description <span className="pp-required">*</span></label>
+              <input className="pp-input" placeholder="What was this expense for?" value={form.description} onChange={(e) => set("description", e.target.value)} autoFocus />
+            </div>
+
+            <div className="pp-row-2">
+              <div className="pp-field">
+                <label className="pp-field-label">Category <span className="pp-required">*</span></label>
+                <select className="pp-input" value={form.category_id} onChange={(e) => set("category_id", e.target.value)}>
+                  {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="pp-field">
+                <label className="pp-field-label">Amount (GHS) <span className="pp-required">*</span></label>
+                <input className="pp-input" type="number" placeholder="0.00" value={form.amount} onChange={(e) => set("amount", e.target.value)} />
+              </div>
+            </div>
+
+            <div className="pp-row-2">
+              <div className="pp-field">
+                <label className="pp-field-label">Payment method <span className="pp-required">*</span></label>
+                <select className="pp-input" value={form.payment_method} onChange={(e) => set("payment_method", e.target.value)}>
+                  {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                </select>
+              </div>
+              <div className="pp-field">
+                <label className="pp-field-label">Date <span className="pp-required">*</span></label>
+                <input className="pp-input" type="date" value={form.expense_date} max={new Date().toISOString().split("T")[0]} onChange={(e) => set("expense_date", e.target.value)} />
+              </div>
+            </div>
+
+            <div className="pp-field">
+              <label className="pp-field-label">Linked booking (optional)</label>
+              <input className="pp-input" placeholder="Paste booking ID to attribute this expense to an event" value={form.booking_ref} onChange={(e) => set("booking_ref", e.target.value)} />
+            </div>
+
+            <div className="pp-field">
+              <label className="pp-field-label">Notes (optional)</label>
+              <textarea className="pp-input" rows={2} value={form.notes} onChange={(e) => set("notes", e.target.value)} style={{ resize: "none" }} />
+            </div>
+
+            <div className="pp-field">
+              <label className="pp-field-label">Receipt (optional)</label>
+              <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px", border: "1.5px dashed var(--pp-border2)", borderRadius: "var(--pp-radius-sm)", cursor: "pointer", fontSize: 12.5, color: receiptFile ? "var(--pp-green)" : "var(--pp-text-3)" }}>
+                <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} />
+                {receiptFile ? `✓ ${receiptFile.name}` : "📎 Attach receipt photo or PDF"}
+              </label>
+            </div>
+          </div>
+
+          <div className="pp-modal-footer">
+            <button type="button" className="pp-btn pp-btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
+            <button type="submit" className={cn("pp-btn pp-btn-primary", saving && "pp-btn--loading")} style={{ flex: 2, justifyContent: "center" }} disabled={saving}>
+              {saving && <span className="pp-spinner" />}
+              <span>Save Changes</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Types ────────────────────────────────────────────────────
 interface ExpenseForm {
   description:    string;
   category_id:    string;
@@ -17,6 +152,14 @@ interface ExpenseForm {
   expense_date:   string;
   booking_ref:    string;
   notes:          string;
+}
+
+function normaliseBookingId(value: string): string | undefined | "__invalid__" {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidPattern.test(trimmed) ? trimmed : "__invalid__";
 }
 
 const PAYMENT_METHODS = [
@@ -28,11 +171,12 @@ const PAYMENT_METHODS = [
   { value: "paystack",        label: "Paystack" },
 ];
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ─────────────────────────────────────────────────────
 export default function ExpensesPage() {
   const [search, setSearch]         = useState("");
   const [catFilter, setCatFilter]   = useState("all");
   const [showModal, setShowModal]   = useState(false);
+  const [editExpense, setEditExpense] = useState<any | null>(null);
 
   // Real hooks
   const {
@@ -156,7 +300,7 @@ export default function ExpensesPage() {
           ))
         ) : filtered.length === 0 ? (
           <div className="pp-empty" style={{ padding: "40px" }}>
-            <div className="pp-empty-icon">ðŸ’¸</div>
+            <div className="pp-empty-icon">💸</div>
             <div className="pp-empty-title">No expenses found</div>
             <p className="pp-empty-sub">Add your first expense or adjust the filters</p>
           </div>
@@ -175,18 +319,70 @@ export default function ExpensesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((e: any) => (
-                  <ExpenseRow
-                    key={e.id}
-                    expense={e}
-                    onDelete={() => refresh()}
-                  />
-                ))}
+                {filtered.map((e: any) => {
+                  const catColor = e.category?.color;
+                  const methodLabel = PAYMENT_METHODS.find((m) => m.value === e.payment_method)?.label || e.payment_method;
+                  const onEdit = () => setEditExpense(e);
+                  const onDelete = () => {
+                    if (window.confirm("Delete this expense? This cannot be undone.")) {
+                      api.delete(`/accounting/expenses/${e.id}`)
+                        .then(() => refresh())
+                        .catch((err) => alert(normaliseError(err).message));
+                    }
+                  };
+                  return (
+                    <tr className="pp-tr-clickable" key={e.id}>
+                      <td>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--pp-text)" }}>{e.description}</div>
+                        <div style={{ fontSize: 11, color: "var(--pp-text-3)" }}>{e.reference}</div>
+                      </td>
+                      <td>
+                        {e.category && (
+                          <span
+                            className="pp-service-pill"
+                            style={{
+                              background:   catColor ? `${catColor}18` : undefined,
+                              color:        catColor ?? undefined,
+                              borderColor:  catColor ? `${catColor}30` : undefined,
+                            }}
+                          >
+                            {e.category.name}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ fontWeight: 600, color: "var(--pp-text)" }}>{formatCurrency(e.amount)}</td>
+                      <td style={{ color: "var(--pp-text-2)" }}>{methodLabel}</td>
+                      <td style={{ color: "var(--pp-text-2)", whiteSpace: "nowrap" }}>
+                        {formatDate(e.expense_date, "short")}
+                      </td>
+                      <td style={{ fontSize: 11.5, color: "var(--pp-text-3)" }}>
+                        {e.booking_id ? (
+                          <Link href={`/bookings/${e.booking_id}`} style={{ color: "var(--pp-text-2)", textDecoration: "none" }}>
+                            View →
+                          </Link>
+                        ) : "—"}
+                      </td>
+                      <td>
+                        <div className="pp-row-actions" onClick={(e) => e.stopPropagation()}>
+                          <button className="pp-row-btn" title="Edit" onClick={onEdit}><EditIcon /></button>
+                          {e.receipt_url && (
+                            <a href={e.receipt_url} target="_blank" rel="noopener noreferrer" className="pp-row-btn" title="Receipt">
+                              <ReceiptIcon />
+                            </a>
+                          )}
+                          <button className="pp-row-btn pp-row-btn--danger" title="Delete" onClick={onDelete}>
+                            <TrashIcon />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             <div className="pp-pagination">
               <span>
-                Showing {filtered.length} expenses &nbsp;Â·&nbsp;
+                Showing {filtered.length} expenses &nbsp;·&nbsp;
                 Total:{" "}
                 <strong style={{ color: "var(--pp-text)" }}>
                   {formatCurrency(filteredTotal)}
@@ -205,65 +401,20 @@ export default function ExpensesPage() {
           onSaved={() => { setShowModal(false); refresh(); }}
         />
       )}
+      {/* Edit expense modal */}
+      {editExpense && (
+        <EditExpenseModal
+          categories={categories}
+          expense={editExpense}
+          onClose={() => setEditExpense(null)}
+          onSaved={() => { setEditExpense(null); refresh(); }}
+        />
+      )}
     </>
   );
 }
 
-// â”€â”€â”€ Expense row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function ExpenseRow({ expense: e, onDelete }: { expense: any; onDelete: () => void }) {
-  const methodLabel = PAYMENT_METHODS.find((m) => m.value === e.payment_method)?.label ?? e.payment_method;
-  const catColor    = e.category?.color;
-
-  return (
-    <tr className="pp-tr-clickable">
-      <td>
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--pp-text)" }}>{e.description}</div>
-        <div style={{ fontSize: 11, color: "var(--pp-text-3)" }}>{e.reference}</div>
-      </td>
-      <td>
-        {e.category && (
-          <span
-            className="pp-service-pill"
-            style={{
-              background:   catColor ? `${catColor}18` : undefined,
-              color:        catColor ?? undefined,
-              borderColor:  catColor ? `${catColor}30` : undefined,
-            }}
-          >
-            {e.category.name}
-          </span>
-        )}
-      </td>
-      <td style={{ fontWeight: 600, color: "var(--pp-text)" }}>{formatCurrency(e.amount)}</td>
-      <td style={{ color: "var(--pp-text-2)" }}>{methodLabel}</td>
-      <td style={{ color: "var(--pp-text-2)", whiteSpace: "nowrap" }}>
-        {formatDate(e.expense_date, "short")}
-      </td>
-      <td style={{ fontSize: 11.5, color: "var(--pp-text-3)" }}>
-        {e.booking_id ? (
-          <Link href={`/bookings/${e.booking_id}`} style={{ color: "var(--pp-text-2)", textDecoration: "none" }}>
-            View â†’
-          </Link>
-        ) : "â€”"}
-      </td>
-      <td>
-        <div className="pp-row-actions" onClick={(e) => e.stopPropagation()}>
-          <button className="pp-row-btn" title="Edit"><EditIcon /></button>
-          {e.receipt_url && (
-            <a href={e.receipt_url} target="_blank" rel="noopener noreferrer" className="pp-row-btn" title="Receipt">
-              <ReceiptIcon />
-            </a>
-          )}
-          <button className="pp-row-btn pp-row-btn--danger" title="Delete" onClick={onDelete}>
-            <TrashIcon />
-          </button>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-// â”€â”€â”€ Add expense modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Add expense modal ────────────────────────────────────────
 function AddExpenseModal({
   categories,
   onClose,
@@ -302,6 +453,11 @@ function AddExpenseModal({
       setError("Please enter a valid amount");
       return;
     }
+    const bookingId = normaliseBookingId(form.booking_ref);
+    if (bookingId === "__invalid__") {
+      setError("Linked booking must be a valid booking ID");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -311,6 +467,7 @@ function AddExpenseModal({
         amount,
         payment_method: form.payment_method,
         expense_date:   form.expense_date,
+        booking_id:     bookingId,
         notes:          form.notes || undefined,
       });
       onSaved();
@@ -366,7 +523,7 @@ function AddExpenseModal({
 
             <div className="pp-field">
               <label className="pp-field-label">Linked booking (optional)</label>
-              <input className="pp-input" placeholder="e.g. BK-2025-0048" value={form.booking_ref} onChange={(e) => set("booking_ref", e.target.value)} />
+              <input className="pp-input" placeholder="Paste booking ID to attribute this expense to an event" value={form.booking_ref} onChange={(e) => set("booking_ref", e.target.value)} />
             </div>
 
             <div className="pp-field">
@@ -378,7 +535,7 @@ function AddExpenseModal({
               <label className="pp-field-label">Receipt (optional)</label>
               <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px", border: "1.5px dashed var(--pp-border2)", borderRadius: "var(--pp-radius-sm)", cursor: "pointer", fontSize: 12.5, color: receiptFile ? "var(--pp-green)" : "var(--pp-text-3)" }}>
                 <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} />
-                {receiptFile ? `âœ“ ${receiptFile.name}` : "ðŸ“Ž Attach receipt photo or PDF"}
+                {receiptFile ? `✓ ${receiptFile.name}` : "📎 Attach receipt photo or PDF"}
               </label>
             </div>
           </div>
@@ -396,7 +553,7 @@ function AddExpenseModal({
   );
 }
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpers ──────────────────────────────────────────────────
 function StatMini({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: "gold" | "green" }) {
   return (
     <div className={cn("pp-ops-summary-card", tone && `pp-ops-summary-card--${tone}`)}>

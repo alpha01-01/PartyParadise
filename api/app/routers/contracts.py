@@ -1,15 +1,21 @@
+import logging
+import re
 from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from uuid import UUID
 from datetime import date
 from decimal import Decimal
 
 from app.database import get_db
+from app.schemas.types import Money
 from app.dependencies import require_permission
+from app.utils.audit import record_audit
+from app.utils.security import create_contract_signing_token, decode_token
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # ─── Schemas ──────────────────────────────────────────────────
@@ -18,7 +24,7 @@ class CreateContractRequest(BaseModel):
     booking_id: UUID
     template_id: Optional[UUID] = None
     special_terms: Optional[str] = None
-    deposit_amount: Optional[Decimal] = None
+    deposit_amount: Optional[Money] = None
 
 
 class ContractResponse(BaseModel):
@@ -30,8 +36,8 @@ class ContractResponse(BaseModel):
     client_name: str
     event_date: date
     venue: Optional[str]
-    total_amount: Decimal
-    deposit_amount: Optional[Decimal]
+    total_amount: Money
+    deposit_amount: Optional[Money]
     signed_at: Optional[str]
     created_at: str
 
@@ -39,7 +45,7 @@ class ContractResponse(BaseModel):
 
 
 class SignContractRequest(BaseModel):
-    signature_data: str     # typed name or base64 PNG from canvas
+    signature_data: str = Field(..., min_length=1, max_length=200_000)  # typed name or base64 PNG from canvas
 
 
 # ─── Routes ───────────────────────────────────────────────────
@@ -68,6 +74,22 @@ def list_contracts(
 
     result = paginate(query.order_by(Contract.created_at.desc()), page, page_size)
     return result
+
+
+# ─── Templates ────────────────────────────────────────────────
+
+@router.get("/templates")
+def list_templates(
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("contracts:read")),
+):
+    from app.models.contracts import ContractTemplate
+    return (
+        db.query(ContractTemplate)
+        .filter(ContractTemplate.is_active == True)
+        .order_by(ContractTemplate.name.asc())
+        .all()
+    )
 
 
 @router.get("/{contract_id}")
@@ -113,6 +135,7 @@ def create_contract(
     if data.template_id:
         template = db.query(ContractTemplate).filter(ContractTemplate.id == data.template_id).first()
     if not template:
+        # A template for this service wins over a generic one
         template = (
             db.query(ContractTemplate)
             .filter(
@@ -120,6 +143,7 @@ def create_contract(
                 (ContractTemplate.service_type == booking.service_type) |
                 (ContractTemplate.service_type == None)
             )
+            .order_by(ContractTemplate.service_type.is_(None), ContractTemplate.name.asc())
             .first()
         )
 
@@ -133,15 +157,17 @@ def create_contract(
 
     # Fill template placeholders
     client_name = f"{client.first_name} {client.last_name}"
+    service_type = booking.service_type.replace("_", " ").title()
     body = _fill_template(template.body, {
-        "CLIENT_NAME":    client_name,
-        "CLIENT_PHONE":   client.phone or "",
-        "EVENT_DATE":     str(booking.event_date),
-        "VENUE":          booking.venue_name or "",
-        "SERVICE_TYPE":   booking.service_type.replace("_", " ").title(),
-        "TOTAL_AMOUNT":   f"GHS {total:,.2f}",
-        "DEPOSIT_AMOUNT": f"GHS {deposit:,.2f}",
-        "BUSINESS_NAME":  "PartyParadise",
+        "client_name":         client_name,
+        "client_phone":        client.phone or "",
+        "event_date":          booking.event_date.strftime("%d %B %Y"),
+        "venue":               booking.venue_name or "To be confirmed",
+        "service_type":        service_type,
+        "service_description": _describe_services(services, service_type),
+        "total_amount":        f"GHS {total:,.2f}",
+        "deposit_amount":      f"GHS {deposit:,.2f}",
+        "business_name":       "PartyParadise",
     })
 
     if data.special_terms:
@@ -186,33 +212,38 @@ def send_contract(
     contract = db.query(Contract).filter(Contract.id == contract_id).first()
     if not contract:
         raise HTTPException(status_code=404, detail="Contract not found")
-    if contract.status not in ("draft",):
+    if contract.status not in ("draft", "sent"):
         raise HTTPException(status_code=400, detail=f"Cannot send contract with status '{contract.status}'")
 
     contract.status = "sent"
     contract.sent_at = datetime.now(timezone.utc)
     db.commit()
 
-    signing_url = f"{settings.WEB_URL}/contracts/sign/{contract.id}"
+    signing_url = f"{settings.WEB_URL}/contracts/sign/{create_contract_signing_token(str(contract.id))}"
 
-    # Email the signing link to the client
+    # Email the signing link to the client, with the PDF when it can be generated
+    email_sent = False
     try:
         from app.models.clients import Client
         from app.services.email import send_contract_email
         from app.services.pdf import generate_contract_pdf
         client = db.query(Client).filter(Client.id == contract.client_id).first()
         if client and client.email:
-            pdf_bytes = generate_contract_pdf(contract)
-            send_contract_email(contract, client, signing_url=signing_url, pdf_bytes=pdf_bytes)
+            try:
+                pdf_bytes = generate_contract_pdf(contract)
+            except Exception:
+                logger.exception("Could not generate PDF for contract %s", contract.reference)
+                pdf_bytes = None
+            email_sent = send_contract_email(contract, client, signing_url=signing_url, pdf_bytes=pdf_bytes)
     except Exception as exc:
-        import logging
-        logging.getLogger(__name__).exception("Failed to send contract email: %s", exc)
+        logger.exception("Failed to send contract email: %s", exc)
 
     return {
         "message": "Contract sent",
         "reference": contract.reference,
         "signing_url": signing_url,
         "status": contract.status,
+        "email_sent": email_sent,
     }
 
 
@@ -226,14 +257,11 @@ def get_contract_for_signing(
 ):
     """
     Public: return contract data for client to review before signing.
-    Token is the contract UUID (simple for now; can use signed JWT token later).
+    The token is a signed, expiring link issued when the contract is sent.
     """
     from app.models.contracts import Contract
 
-    try:
-        contract_id = UUID(token)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid signing link")
+    contract_id = _contract_id_from_token(token)
 
     contract = db.query(Contract).filter(Contract.id == contract_id).first()
     if not contract:
@@ -283,15 +311,12 @@ def sign_contract(
     from app.models.portal import ClientPortalAccount, PortalNotification
     from datetime import datetime, timezone
 
-    try:
-        contract_id = UUID(token)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid signing link")
+    contract_id = _contract_id_from_token(token)
 
     contract = db.query(Contract).filter(
         Contract.id == contract_id,
         Contract.status == "sent",
-    ).first()
+    ).with_for_update().first()
     if not contract:
         raise HTTPException(status_code=404, detail="Contract not found or already signed")
 
@@ -299,6 +324,15 @@ def sign_contract(
     contract.signature_data = data.signature_data
     contract.signed_at = datetime.now(timezone.utc)
     contract.signed_ip = request.client.host if request.client else None
+    record_audit(
+        db,
+        user_id=None,
+        action="sign",
+        module="contracts",
+        entity_type="contract",
+        entity_id=contract.id,
+        extra={"ip": contract.signed_ip},
+    )
 
     # Notify client portal if they have an account
     portal_account = (
@@ -335,26 +369,41 @@ def sign_contract(
     }
 
 
-# ─── Templates ────────────────────────────────────────────────
-
-@router.get("/templates")
-def list_templates(
-    db: Session = Depends(get_db),
-    _=Depends(require_permission("contracts:read")),
-):
-    from app.models.contracts import ContractTemplate
-    return (
-        db.query(ContractTemplate)
-        .filter(ContractTemplate.is_active == True)
-        .order_by(ContractTemplate.name.asc())
-        .all()
-    )
-
-
 # ─── Template helper ──────────────────────────────────────────
 
+def _contract_id_from_token(token: str) -> UUID:
+    payload = decode_token(token)
+    if not payload or payload.get("type") != "contract_sign":
+        raise HTTPException(status_code=404, detail="This signing link is invalid or has expired")
+    return UUID(payload["sub"])
+
+
 def _fill_template(body: str, values: dict) -> str:
-    """Replace {{KEY}} placeholders in the template body."""
-    for key, value in values.items():
-        body = body.replace(f"{{{{{key}}}}}", value)
-    return body
+    """
+    Replace {{key}} placeholders in the template body, ignoring case.
+    A contract must never reach a client with a raw placeholder in it.
+    """
+    unknown = set()
+
+    def replace(match):
+        key = match.group(1).lower()
+        if key not in values:
+            unknown.add(match.group(1))
+            return match.group(0)
+        return values[key]
+
+    filled = re.sub(r"\{\{\s*(\w+)\s*\}\}", replace, body)
+    if unknown:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Template has unknown placeholders: {', '.join(sorted(unknown))}",
+        )
+    return filled
+
+
+def _describe_services(services, service_type: str) -> str:
+    lines = [
+        f"- {s.service.replace('_', ' ').title()}" + (f": {s.description}" if s.description else "")
+        for s in services
+    ]
+    return "\n".join(lines) or service_type

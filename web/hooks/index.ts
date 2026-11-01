@@ -16,6 +16,8 @@ import type {
   InvoiceStatus,
   Payment,
   RecordPaymentRequest,
+  InventoryImportResult,
+  ShopSale,
 } from "@/lib/types";
 
 export interface ClientFilters {
@@ -49,7 +51,7 @@ export function useClients(initialFilters: ClientFilters = {}) {
     if (active.tag) params.set("tag", active.tag);
     if (active.search) params.set("search", active.search);
     if (active.assigned_to) params.set("assigned_to", active.assigned_to);
-    params.set("page", String(active.page ?? page));
+    params.set("page", String(override?.page ?? page));
     params.set("page_size", String(active.page_size ?? 20));
 
     try {
@@ -200,7 +202,7 @@ export function useInvoices(initialFilters: InvoiceFilters = {}) {
     if (active.client_id) params.set("client_id", active.client_id);
     if (active.overdue) params.set("overdue", "true");
     if (active.search) params.set("search", active.search);
-    params.set("page", String(active.page ?? page));
+    params.set("page", String(override?.page ?? page));
     params.set("page_size", String(active.page_size ?? 20));
 
     try {
@@ -286,8 +288,22 @@ export async function generateInvoiceFromBooking(bookingId: string): Promise<Inv
   return data;
 }
 
-export async function sendInvoice(invoiceId: string): Promise<Invoice> {
-  const { data } = await api.patch<Invoice>(`/invoicing/invoices/${invoiceId}/send`);
+export interface InvoiceStats {
+  outstanding: number;
+  outstanding_count: number;
+  overdue: number;
+  overdue_count: number;
+  collected_this_month: number;
+  drafts: number;
+}
+
+export async function fetchInvoiceStats(): Promise<InvoiceStats> {
+  const { data } = await api.get<InvoiceStats>("/invoicing/invoices/stats");
+  return data;
+}
+
+export async function sendInvoice(invoiceId: string): Promise<Invoice & { email_sent: boolean }> {
+  const { data } = await api.patch<Invoice & { email_sent: boolean }>(`/invoicing/invoices/${invoiceId}/send`);
   return data;
 }
 
@@ -354,8 +370,11 @@ export function useContracts(initialFilters: ContractFilters = {}) {
     loading,
     error,
     filters,
-    updateFilters: (next: Partial<ContractFilters>) =>
-      setFilters((f) => ({ ...f, ...next, page: 1 })),
+    updateFilters: (next: Partial<ContractFilters>) => {
+      setFilters((f) => ({ ...f, ...next, page: 1 }));
+      setPage(1);
+    },
+    goToPage: setPage,
     refresh: fetch,
   };
 }
@@ -388,10 +407,10 @@ export async function createContract(data: {
 }
 
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────
 // hooks/useInventory.ts
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-import type { InventoryItem, Equipment } from "@/lib/types";
+// ─────────────────────────────────────────────────────────────
+import type { InventoryItem, Equipment, InventoryTransaction } from "@/lib/types";
 
 export function useInventoryItems(filters: {
   category?: string;
@@ -402,31 +421,43 @@ export function useInventoryItems(filters: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (filters.category) params.set("category", filters.category);
-      if (filters.low_stock) params.set("low_stock", "true");
-      if (filters.search) params.set("search", filters.search);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const params = new URLSearchParams();
+    if (filters.category) params.set("category", filters.category);
+    if (filters.low_stock) params.set("low_stock", "true");
+    if (filters.search) params.set("search", filters.search);
 
-      try {
+    params.set("page_size", "100");
+
+    try {
+      // Stock and shop screens work on the full catalogue, not one page of it
+      const all: InventoryItem[] = [];
+      let nextPage = 1;
+      let lastPage = 1;
+      do {
+        params.set("page", String(nextPage));
         const { data } = await api.get<PaginatedResponse<InventoryItem>>(
           `/inventory/items?${params}`
         );
-        if (!cancelled) setItems(data.items);
-      } catch (err) {
-        if (!cancelled) setError(normaliseError(err).message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+        all.push(...data.items);
+        lastPage = data.total_pages;
+        nextPage += 1;
+      } while (nextPage <= lastPage);
+      setItems(all);
+    } catch (err) {
+      setError(normaliseError(err).message);
+    } finally {
+      setLoading(false);
     }
-    load();
-    return () => { cancelled = true; };
   }, [filters.category, filters.low_stock, filters.search]);
 
-  return { items, loading, error };
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return { items, loading, error, refresh: load };
 }
 
 export function useEquipment(availableOn?: string) {
@@ -469,10 +500,94 @@ export async function createInventoryTransaction(data: {
   await api.post("/inventory/transactions", data);
 }
 
+export async function createInventoryItem(data: {
+  name: string;
+  sku?: string;
+  category: string;
+  unit: string;
+  reorder_level?: number;
+  initial_quantity?: number;
+  unit_cost?: number;
+  unit_price?: number;
+  location?: string;
+}): Promise<InventoryItem> {
+  const { data: item } = await api.post<InventoryItem>("/inventory/items", data);
+  return item;
+}
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+export async function updateInventoryItem(
+  itemId: string,
+  data: Partial<{
+    name: string;
+    sku: string;
+    category: string;
+    unit: string;
+    reorder_level: number;
+    unit_cost: number;
+    unit_price: number;
+    location: string;
+    is_active: boolean;
+  }>
+): Promise<InventoryItem> {
+  const { data: item } = await api.patch<InventoryItem>(`/inventory/items/${itemId}`, data);
+  return item;
+}
+
+export async function listInventoryTransactions(itemId: string): Promise<InventoryTransaction[]> {
+  const { data } = await api.get<InventoryTransaction[]>(`/inventory/items/${itemId}/transactions`);
+  return data;
+}
+
+export async function importInventoryItems(file: File): Promise<InventoryImportResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await api.post<InventoryImportResult>("/inventory/items/import", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
+export function useShopSales(limit = 20) {
+  const [sales, setSales] = useState<ShopSale[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await api.get<ShopSale[]>(`/inventory/shop-sales?limit=${limit}`);
+      setSales(data);
+    } catch (err) {
+      setError(normaliseError(err).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [limit]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return { sales, loading, error, refresh: load };
+}
+
+export async function createShopSale(data: {
+  customer_name?: string;
+  customer_phone?: string;
+  payment_method: string;
+  paid_at?: string;
+  notes?: string;
+  items: { item_id: string; quantity: number; unit_price?: number }[];
+}): Promise<ShopSale> {
+  const { data: sale } = await api.post<ShopSale>("/inventory/shop-sales", data);
+  return sale;
+}
+
+
+// ─────────────────────────────────────────────────────────────
 // hooks/useReports.ts
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────
 import type {
   DashboardSummary,
   PnLReport,
@@ -570,9 +685,9 @@ export function useLowStockItems() {
 }
 
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════════
 // EXPENSES
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════════
 
 export interface ExpenseFilters {
   category_id?: string;
@@ -698,9 +813,9 @@ export async function deleteExpense(id: string): Promise<void> {
 }
 
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════════
 // STAFF
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════════
 
 export interface StaffProfileData {
   id: string;
@@ -710,6 +825,8 @@ export interface StaffProfileData {
   role_title: string;
   employment_type: "full_time" | "part_time" | "contract";
   phone: string | null;
+  emergency_contact?: string | null;
+  emergency_phone?: string | null;
   base_salary: number | null;
   daily_rate: number | null;
   is_active: boolean;
@@ -755,6 +872,16 @@ function toInitials(name: string): string {
     .slice(0, 2);
 }
 
+function enrichStaffProfile(raw: any): StaffProfileData {
+  const fullName = raw.user?.full_name ?? raw.full_name ?? "Unknown";
+  return {
+    ...raw,
+    full_name: fullName,
+    email: raw.user?.email ?? raw.email ?? "",
+    initials: toInitials(fullName || "?"),
+  };
+}
+
 export function useStaff(filters: { employment_type?: string; is_active?: boolean; search?: string } = {}) {
   const [staff, setStaff] = useState<StaffProfileData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -770,13 +897,7 @@ export function useStaff(filters: { employment_type?: string; is_active?: boolea
 
     try {
       const { data: raw } = await api.get<any[]>(`/staff?${params}`);
-      // Attach initials (computed from user.full_name on the backend join)
-      setStaff(raw.map((s) => ({
-        ...s,
-        full_name: s.user?.full_name ?? s.full_name ?? "Unknown",
-        email:     s.user?.email    ?? s.email     ?? "",
-        initials:  toInitials(s.user?.full_name ?? s.full_name ?? "?"),
-      })));
+      setStaff(raw.map(enrichStaffProfile));
     } catch (err) {
       setError(normaliseError(err).message);
     } finally {
@@ -789,6 +910,32 @@ export function useStaff(filters: { employment_type?: string; is_active?: boolea
   return { staff, loading, error, refresh: fetch };
 }
 
+export function useStaffMember(id: string | null) {
+  const [staff, setStaff] = useState<StaffProfileData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await api.get<any>(`/staff/${id}`);
+      setStaff(enrichStaffProfile(data));
+    } catch (err) {
+      setError(normaliseError(err).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return { staff, loading, error, refresh: load };
+}
+
 export async function createStaffMember(data: {
   first_name: string;
   last_name: string;
@@ -799,7 +946,7 @@ export async function createStaffMember(data: {
   base_salary?: number;
   daily_rate?: number;
   hired_at?: string;
-}): Promise<StaffProfileData> {
+}): Promise<StaffProfileData & { invite_sent: boolean; setup_url: string | null }> {
   const { data: profile } = await api.post<any>("/staff", data);
   return {
     ...profile,
@@ -809,25 +956,73 @@ export async function createStaffMember(data: {
   };
 }
 
+export async function updateStaffMember(
+  id: string,
+  data: {
+    role_title?: string;
+    employment_type?: "full_time" | "part_time" | "contract";
+    phone?: string;
+    emergency_contact?: string;
+    emergency_phone?: string;
+    base_salary?: number;
+    daily_rate?: number;
+    is_active?: boolean;
+  }
+): Promise<StaffProfileData> {
+  const { data: profile } = await api.patch<any>(`/staff/${id}`, data);
+  return enrichStaffProfile(profile);
+}
+
 export function useWeekShifts(weekStart: string) {
   const [shifts, setShifts] = useState<ShiftData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetch = useCallback(async () => {
     if (!weekStart) return;
-    let cancelled = false;
     setLoading(true);
-
-    api.get<ShiftData[]>(`/staff/shifts/week?week=${weekStart}`)
-      .then(({ data: d }) => { if (!cancelled) setShifts(d); })
-      .catch((err) => { if (!cancelled) setError(normaliseError(err).message); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-
-    return () => { cancelled = true; };
+    setError(null);
+    try {
+      const { data } = await api.get<ShiftData[]>(`/staff/shifts/week?week=${weekStart}`);
+      setShifts(data);
+    } catch (err) {
+      setError(normaliseError(err).message);
+    } finally {
+      setLoading(false);
+    }
   }, [weekStart]);
 
-  return { shifts, loading, error };
+  useEffect(() => {
+    void fetch();
+  }, [fetch]);
+
+  return { shifts, loading, error, refresh: fetch };
+}
+
+export function useStaffSchedule(staffId: string | null, month: string) {
+  const [shifts, setShifts] = useState<ShiftData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!staffId || !month) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await api.get<ShiftData[]>(`/staff/${staffId}/schedule?month=${month}`);
+      setShifts(data);
+    } catch (err) {
+      setError(normaliseError(err).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [month, staffId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return { shifts, loading, error, refresh: load };
 }
 
 export async function createShift(data: {
@@ -851,6 +1046,7 @@ export function useLeaveRequests(filters: { status?: string; staff_id?: string }
 
   const fetch = useCallback(async () => {
     setLoading(true);
+    setError(null);
     const params = new URLSearchParams();
     if (filters.status)   params.set("status",   filters.status);
     if (filters.staff_id) params.set("staff_id", filters.staff_id);
@@ -881,6 +1077,21 @@ export async function reviewLeaveRequest(
   notes?: string
 ): Promise<void> {
   await api.patch(`/staff/leave/${id}`, { status, review_notes: notes });
+}
+
+export async function createLeaveRequest(data: {
+  staff_id: string;
+  type: string;
+  start_date: string;
+  end_date: string;
+  reason?: string;
+}): Promise<LeaveRequestData> {
+  const { data: request } = await api.post<any>("/staff/leave", data);
+  return {
+    ...request,
+    staff_name: request.staff?.user?.full_name ?? request.staff_name ?? "Staff",
+    staff_initials: toInitials(request.staff?.user?.full_name ?? request.staff_name ?? "?"),
+  };
 }
 
 

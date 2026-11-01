@@ -1,11 +1,20 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useEquipment } from "@/hooks";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import api, { normaliseError } from "@/lib/api";
 import { downloadCsv } from "@/lib/export";
 import type { Equipment, EquipmentStatus } from "@/lib/types";
+
+interface MaintenanceEntry {
+  id: string;
+  type: string;
+  description: string;
+  cost: number | null;
+  serviced_at: string;
+  next_service_at: string | null;
+}
 
 const STATUS_LABELS: Record<EquipmentStatus, string> = {
   available: "Available",
@@ -48,6 +57,7 @@ export default function EquipmentPage() {
   const [status, setStatus] = useState<EquipmentStatus | "all">("all");
   const [selected, setSelected] = useState<Equipment | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
 
   const { equipment, loading, error } = useEquipment();
 
@@ -145,7 +155,15 @@ export default function EquipmentPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((item) => <EquipmentRow key={item.id} equipment={item} selected={selected?.id === item.id} onSelect={() => setSelected((current) => current?.id === item.id ? null : item)} />)}
+                {filtered.map((item) => (
+                  <EquipmentRow
+                    key={item.id}
+                    equipment={item}
+                    selected={selected?.id === item.id}
+                    onSelect={() => setSelected((current) => current?.id === item.id ? null : item)}
+                    onEdit={() => setEditingEquipment(item)}
+                  />
+                ))}
               </tbody>
             </table>
           )}
@@ -153,8 +171,18 @@ export default function EquipmentPage() {
         </div>
       </div>
 
-      {selected && <EquipmentDetailPanel equipment={selected} onClose={() => setSelected(null)} />}
+      {selected && <EquipmentDetailPanel equipment={selected} onClose={() => setSelected(null)} onEdit={() => setEditingEquipment(selected)} />}
       {showAddModal && <AddEquipmentModal onClose={() => setShowAddModal(false)} onSaved={() => setShowAddModal(false)} />}
+      {editingEquipment && (
+        <EditEquipmentModal
+          equipment={editingEquipment}
+          onClose={() => setEditingEquipment(null)}
+          onSaved={(updated) => {
+            setEditingEquipment(null);
+            setSelected(updated);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -169,7 +197,7 @@ function SummaryCard({ label, value, detail, tone }: { label: string; value: str
   );
 }
 
-function EquipmentRow({ equipment, selected, onSelect }: { equipment: Equipment; selected: boolean; onSelect: () => void }) {
+function EquipmentRow({ equipment, selected, onSelect, onEdit }: { equipment: Equipment; selected: boolean; onSelect: () => void; onEdit: () => void }) {
   const conditionColor = CONDITION_COLORS[equipment.condition] ?? "var(--pp-text-3)";
   const serviceDue = Boolean(equipment.last_serviced_at) && new Date(equipment.last_serviced_at as string) < new Date(Date.now() - 180 * 86400000);
 
@@ -182,18 +210,34 @@ function EquipmentRow({ equipment, selected, onSelect }: { equipment: Equipment;
       <td><div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11 }}><div style={{ width: 7, height: 7, borderRadius: "50%", background: conditionColor }} />{titleCase(equipment.condition)}</div></td>
       <td style={{ fontWeight: 500, color: "var(--pp-text)" }}>{formatCurrency(equipment.purchase_cost, { showEmpty: true })}</td>
       <td style={{ fontSize: 11.5, color: serviceDue ? "var(--pp-red)" : "var(--pp-text-3)" }}>{equipment.last_serviced_at ? formatDate(equipment.last_serviced_at, "short") : "-"}</td>
-      <td><div className="pp-row-actions" onClick={(event) => event.stopPropagation()}><button className="pp-row-btn" title="Maintenance"><ServiceIcon /></button><button className="pp-row-btn" title="Edit"><EditIcon /></button></div></td>
+      <td><div className="pp-row-actions" onClick={(event) => event.stopPropagation()}><button className="pp-row-btn" title="Maintenance" onClick={onSelect}><ServiceIcon /></button><button className="pp-row-btn" title="Edit" onClick={onEdit}><EditIcon /></button></div></td>
     </tr>
   );
 }
 
-function EquipmentDetailPanel({ equipment, onClose }: { equipment: Equipment; onClose: () => void }) {
+function EquipmentDetailPanel({ equipment, onClose, onEdit }: { equipment: Equipment; onClose: () => void; onEdit: () => void }) {
   const conditionColor = CONDITION_COLORS[equipment.condition] ?? "var(--pp-text-3)";
   const [showLogForm, setShowLogForm] = useState(false);
   const [logDesc, setLogDesc] = useState("");
   const [logType, setLogType] = useState("routine");
   const [logCost, setLogCost] = useState("");
   const [saving, setSaving] = useState(false);
+  const [maintenance, setMaintenance] = useState<MaintenanceEntry[]>([]);
+  const [maintenanceError, setMaintenanceError] = useState("");
+
+  async function loadMaintenance() {
+    try {
+      const { data } = await api.get<MaintenanceEntry[]>(`/inventory/equipment/${equipment.id}/maintenance`);
+      setMaintenance(data);
+      setMaintenanceError("");
+    } catch (err) {
+      setMaintenanceError(normaliseError(err).message);
+    }
+  }
+
+  useEffect(() => {
+    void loadMaintenance();
+  }, [equipment.id]);
 
   async function handleLogService(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -204,6 +248,7 @@ function EquipmentDetailPanel({ equipment, onClose }: { equipment: Equipment; on
       setShowLogForm(false);
       setLogDesc("");
       setLogCost("");
+      await loadMaintenance();
     } finally {
       setSaving(false);
     }
@@ -220,7 +265,7 @@ function EquipmentDetailPanel({ equipment, onClose }: { equipment: Equipment; on
         </div>
         <div className="pp-dp-actions" style={{ marginTop: 10 }}>
           <button className="pp-btn pp-btn-primary" style={{ fontSize: 12 }} onClick={() => setShowLogForm((open) => !open)}>Log Service</button>
-          <button className="pp-btn pp-btn-ghost" style={{ fontSize: 12 }}>Edit</button>
+          <button className="pp-btn pp-btn-ghost" style={{ fontSize: 12 }} onClick={onEdit}>Edit</button>
         </div>
         {showLogForm && (
           <form onSubmit={handleLogService} style={{ marginTop: 12 }}>
@@ -240,7 +285,28 @@ function EquipmentDetailPanel({ equipment, onClose }: { equipment: Equipment; on
           <DpField label="Last serviced" value={equipment.last_serviced_at ? formatDate(equipment.last_serviced_at) : "-"} />
           <DpField label="Notes" value={equipment.notes ?? "No notes"} />
         </div>
-        <div className="pp-dp-section"><div className="pp-dp-section-header"><span className="pp-dp-section-title">Maintenance Log</span></div><p style={{ padding: "10px 18px", fontSize: 12, color: "var(--pp-text-3)" }}>No maintenance entries recorded yet.</p></div>
+        <div className="pp-dp-section">
+          <div className="pp-dp-section-header"><span className="pp-dp-section-title">Maintenance Log</span></div>
+          {maintenanceError ? (
+            <div className="pp-alert pp-alert-error" style={{ margin: "12px 18px" }}>{maintenanceError}</div>
+          ) : maintenance.length === 0 ? (
+            <p style={{ padding: "10px 18px", fontSize: 12, color: "var(--pp-text-3)" }}>No maintenance entries recorded yet.</p>
+          ) : (
+            maintenance.map((entry) => (
+              <div key={entry.id} style={{ padding: "10px 18px", borderTop: "1px solid var(--pp-border)", display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12 }}>
+                <div>
+                  <div style={{ color: "var(--pp-text)", fontWeight: 500 }}>{titleCase(entry.type)}</div>
+                  <div style={{ color: "var(--pp-text-2)", marginTop: 2 }}>{entry.description}</div>
+                  {entry.next_service_at && <div style={{ color: "var(--pp-text-3)", marginTop: 2 }}>Next service: {formatDate(entry.next_service_at)}</div>}
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ color: "var(--pp-text)" }}>{formatDate(entry.serviced_at)}</div>
+                  <div style={{ color: "var(--pp-text-3)", marginTop: 2 }}>{formatCurrency(entry.cost, { showEmpty: true })}</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
@@ -281,6 +347,64 @@ function AddEquipmentModal({ onClose, onSaved }: { onClose: () => void; onSaved:
             <div className="pp-field"><label className="pp-field-label">Condition</label><select className="pp-input" value={condition} onChange={(event) => setCondition(event.target.value)}><option value="excellent">Excellent</option><option value="good">Good</option><option value="fair">Fair</option><option value="poor">Poor</option></select></div>
           </div>
           <div className="pp-modal-footer"><button type="button" className="pp-btn pp-btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button><button type="submit" className={cn("pp-btn pp-btn-primary", saving && "pp-btn--loading")} style={{ flex: 2, justifyContent: "center" }} disabled={saving}><span>{saving ? "Adding..." : "Add Equipment"}</span></button></div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EditEquipmentModal({
+  equipment,
+  onClose,
+  onSaved,
+}: {
+  equipment: Equipment;
+  onClose: () => void;
+  onSaved: (equipment: Equipment) => void;
+}) {
+  const [name, setName] = useState(equipment.name);
+  const [category, setCategory] = useState(equipment.category);
+  const [status, setStatus] = useState<EquipmentStatus>(equipment.status);
+  const [condition, setCondition] = useState(equipment.condition);
+  const [notes, setNotes] = useState(equipment.notes ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSave(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!name.trim()) { setError("Name is required"); return; }
+    setSaving(true);
+    try {
+      const { data } = await api.patch<Equipment>(`/inventory/equipment/${equipment.id}`, {
+        name: name.trim(),
+        category,
+        status,
+        condition,
+        notes: notes.trim() || undefined,
+      });
+      onSaved(data);
+    } catch (err) {
+      setError(normaliseError(err).message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="pp-modal-overlay" onClick={onClose}>
+      <div className="pp-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="pp-modal-header"><span className="pp-modal-title">Edit Equipment</span><button className="pp-dp-close" style={{ position: "static" }} onClick={onClose}><CloseIcon /></button></div>
+        <form onSubmit={handleSave}>
+          <div className="pp-modal-body">
+            {error && <div className="pp-field-error">{error}</div>}
+            <div className="pp-field"><label className="pp-field-label">Name <span className="pp-required">*</span></label><input className="pp-input" value={name} onChange={(event) => setName(event.target.value)} autoFocus /></div>
+            <div className="pp-row-2">
+              <div className="pp-field"><label className="pp-field-label">Category</label><input className="pp-input" value={category} onChange={(event) => setCategory(event.target.value)} /></div>
+              <div className="pp-field"><label className="pp-field-label">Status</label><select className="pp-input" value={status} onChange={(event) => setStatus(event.target.value as EquipmentStatus)}>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+            </div>
+            <div className="pp-field"><label className="pp-field-label">Condition</label><select className="pp-input" value={condition} onChange={(event) => setCondition(event.target.value)}><option value="excellent">Excellent</option><option value="good">Good</option><option value="fair">Fair</option><option value="poor">Poor</option></select></div>
+            <div className="pp-field"><label className="pp-field-label">Notes</label><textarea className="pp-input" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} style={{ resize: "none" }} /></div>
+          </div>
+          <div className="pp-modal-footer"><button type="button" className="pp-btn pp-btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button><button type="submit" className={cn("pp-btn pp-btn-primary", saving && "pp-btn--loading")} style={{ flex: 2, justifyContent: "center" }} disabled={saving}><span>{saving ? "Saving..." : "Save Changes"}</span></button></div>
         </form>
       </div>
     </div>

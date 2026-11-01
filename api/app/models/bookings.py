@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Integer, Numeric, Date, Time
+from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Integer, Numeric, Date, Time, Index, UniqueConstraint, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -9,6 +9,13 @@ import uuid
 
 class Booking(Base):
     __tablename__ = "bookings"
+    __table_args__ = (
+        Index("idx_bookings_created_by", "created_by"),
+        CheckConstraint("guest_count IS NULL OR guest_count >= 0", name="ck_bookings_guest_count"),
+        Index("idx_bookings_client_id", "client_id"),
+        Index("idx_bookings_event_date", "event_date"),
+        Index("idx_bookings_status", "status"),
+    )
 
     id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     client_id       = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="RESTRICT"), nullable=False)
@@ -43,6 +50,11 @@ class Booking(Base):
 
 class BookingService(Base):
     __tablename__ = "booking_services"
+    __table_args__ = (
+        Index("idx_booking_services_booking_id", "booking_id"),
+        CheckConstraint("price >= 0", name="ck_booking_services_price"),
+    )
+
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     booking_id   = Column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
@@ -57,6 +69,10 @@ class BookingService(Base):
 
 class BookingEquipment(Base):
     __tablename__ = "booking_equipment"
+    __table_args__ = (
+        Index("idx_booking_equipment_equipment_id", "equipment_id"),
+        Index("idx_booking_equipment_booking_id", "booking_id"),
+    )
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     booking_id   = Column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
@@ -70,6 +86,10 @@ class BookingEquipment(Base):
 
 class BookingStaff(Base):
     __tablename__ = "booking_staff"
+    __table_args__ = (
+        UniqueConstraint("booking_id", "user_id", name="uq_booking_staff_booking_user"),
+        Index("idx_booking_staff_user_id", "user_id"),
+    )
 
     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     booking_id  = Column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
@@ -84,6 +104,10 @@ class BookingStaff(Base):
 
 class BookingNote(Base):
     __tablename__ = "booking_notes"
+    __table_args__ = (
+        Index("idx_booking_notes_user_id", "user_id"),
+        Index("idx_booking_notes_booking_id", "booking_id"),
+    )
 
     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     booking_id  = Column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)

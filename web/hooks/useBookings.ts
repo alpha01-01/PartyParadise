@@ -1,3 +1,8 @@
+// Update a booking by ID
+export async function updateBooking(id: string, data: Partial<Booking>): Promise<Booking> {
+  const { data: booking } = await api.patch<Booking>(`/bookings/${id}`, data);
+  return booking;
+}
 import { useState, useEffect, useCallback, useRef } from "react";
 import api, { normaliseError, isRequestCancelled } from "@/lib/api";
 import type {
@@ -196,6 +201,18 @@ export async function addBookingNote(
     ? { note: noteOrData, is_internal: isInternal }
     : { note: noteOrData.note, is_internal: noteOrData.is_internal ?? true };
   await api.post(`/bookings/${id}/notes`, payload);
+}
+
+export async function updateBookingNote(
+  bookingId: string,
+  noteId: string,
+  note: string,
+  isInternal: boolean = true
+): Promise<void> {
+  await api.patch(`/bookings/${bookingId}/notes/${noteId}`, {
+    note,
+    is_internal: isInternal,
+  });
 }
 
 export async function assignStaff(

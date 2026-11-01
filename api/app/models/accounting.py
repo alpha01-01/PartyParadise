@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Numeric, Date
+from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Numeric, Date, Index, UniqueConstraint, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -21,6 +21,16 @@ class ExpenseCategory(Base):
 
 class Expense(Base):
     __tablename__ = "expenses"
+    __table_args__ = (
+        Index("idx_expenses_recorded_by", "recorded_by"),
+        Index("idx_expenses_supplier_id", "supplier_id"),
+        UniqueConstraint("reference", name="uq_expenses_reference"),
+        CheckConstraint("amount > 0", name="ck_expenses_amount"),
+        CheckConstraint("status IN ('pending', 'confirmed', 'voided')", name="ck_expenses_status"),
+        Index("idx_expenses_booking_id", "booking_id"),
+        Index("idx_expenses_category_id", "category_id"),
+        Index("idx_expenses_expense_date", "expense_date"),
+    )
 
     id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     category_id    = Column(UUID(as_uuid=True), ForeignKey("expense_categories.id", ondelete="RESTRICT"), nullable=False)
@@ -61,10 +71,18 @@ class AccountPeriod(Base):
 
 class JournalEntry(Base):
     __tablename__ = "journal_entries"
+    __table_args__ = (
+        Index("idx_journal_entries_created_by", "created_by"),
+        CheckConstraint("amount >= 0", name="ck_journal_entries_amount"),
+        CheckConstraint("type IN ('income', 'expense')", name="ck_journal_entries_type"),
+        Index("idx_journal_entries_entry_date", "entry_date"),
+        Index("idx_journal_entries_period_id", "period_id"),
+        Index("idx_journal_entries_type", "type"),
+    )
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     period_id    = Column(UUID(as_uuid=True), ForeignKey("account_periods.id", ondelete="SET NULL"), nullable=True)
-    created_by   = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_by   = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)  # NULL for webhook payments
     reference    = Column(String(50), nullable=True)
     type         = Column(String(20), nullable=False)
     description  = Column(String(250), nullable=False)
@@ -96,6 +114,10 @@ class BankAccount(Base):
 
 class BankTransaction(Base):
     __tablename__ = "bank_transactions"
+    __table_args__ = (
+        Index("idx_bank_transactions_journal_entry_id", "journal_entry_id"),
+        Index("idx_bank_transactions_account_id", "account_id"),
+    )
 
     id               = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     account_id       = Column(UUID(as_uuid=True), ForeignKey("bank_accounts.id", ondelete="RESTRICT"), nullable=False)

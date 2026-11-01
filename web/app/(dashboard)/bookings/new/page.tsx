@@ -9,7 +9,7 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { normaliseError } from "@/lib/api";
 import type { Client, ServiceType } from "@/lib/types";
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Types ────────────────────────────────────────────────────
 interface ServiceLine {
   id: string;
   service: string;
@@ -19,10 +19,10 @@ interface ServiceLine {
 }
 
 interface FormState {
-  // Step 0 â€” Client
+  // Step 0 — Client
   selectedClient: Client | null;
   clientSearch: string;
-  // Step 1 â€” Event details
+  // Step 1 — Event details
   serviceType: ServiceType | "";
   eventType: string;
   eventDate: string;
@@ -32,7 +32,7 @@ interface FormState {
   venueAddress: string;
   guestCount: string;
   specialRequests: string;
-  // Step 2 â€” Services
+  // Step 2 — Services
   services: ServiceLine[];
 }
 
@@ -72,7 +72,7 @@ const STEPS = [
   { title: "Review", subtitle: "Confirm before creating" },
 ];
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ─────────────────────────────────────────────────────
 export default function NewBookingPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -228,7 +228,7 @@ export default function NewBookingPage() {
   );
 }
 
-// â”€â”€â”€ Step indicator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Step indicator ───────────────────────────────────────────
 function StepIndicator({
   current,
   steps,
@@ -266,7 +266,7 @@ function StepIndicator({
   );
 }
 
-// â”€â”€â”€ Step 0: Client â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Step 0: Client ───────────────────────────────────────────
 function ClientStep({
   form,
   errors,
@@ -388,7 +388,7 @@ function ClientStep({
     </div>
   );
 }
-// â”€â”€â”€ Step 1: Event details â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Step 1: Event details ─────────────────────────────────────
 function EventStep({
   form,
   errors,
@@ -540,7 +540,7 @@ function EventStep({
     </div>
   );
 }
-// â”€â”€â”€ Step 2: Services â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Step 2: Services ─────────────────────────────────────────
 function ServicesStep({
   form,
   errors,
@@ -659,7 +659,7 @@ function ServicesStep({
     </div>
   );
 }
-// â”€â”€â”€ Step 3: Review â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Step 3: Review ───────────────────────────────────────────
 function ReviewStep({
   form,
   totalAmount,
@@ -759,7 +759,7 @@ function ReviewStep({
     </div>
   );
 }
-// â”€â”€â”€ Booking summary sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Booking summary sidebar ───────────────────────────────────
 function BookingSummary({
   form,
   totalAmount,
@@ -865,7 +865,7 @@ function BookingSummary({
   );
 }
 
-// â”€â”€â”€ Small helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Small helpers ────────────────────────────────────────────
 function ReviewSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
@@ -901,7 +901,7 @@ function MissingText() {
   return <span style={{ fontSize: 12, color: "var(--pp-text-3)" }}>Not selected</span>;
 }
 
-// â”€â”€â”€ Icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Icons ────────────────────────────────────────────────────
 function CheckIcon() { return <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
 function PlusIcon()  { return <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>; }
 function CloseIcon() { return <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>; }

@@ -97,8 +97,6 @@ export const useAuthStore = create<AuthState>()(
 
       // Called on app mount to restore session from refresh token
       _hydrateTokens: async () => {
-        const state = get();
-
         try {
           const refreshToken = getRefreshToken();
           if (!refreshToken) {
@@ -107,14 +105,12 @@ export const useAuthStore = create<AuthState>()(
             return;
           }
 
-          const { data: refresh } = await api.post<{ access_token: string }>(
+          const { data: refresh } = await api.post<{ access_token: string; user: User }>(
             "/auth/refresh",
             { refresh_token: refreshToken }
           );
           setAccessToken(refresh.access_token);
-
-          const { data } = await api.get<User>("/auth/me");
-          set({ user: data, isAuthenticated: true });
+          set({ user: refresh.user, isAuthenticated: true });
         } catch {
           clearTokens();
           set({ user: null, isAuthenticated: false });
@@ -150,14 +146,3 @@ export const selectUser = (state: AuthState) => state.user;
 export const selectIsAuthenticated = (state: AuthState) => state.isAuthenticated;
 export const selectAuthLoading = (state: AuthState) => state.isLoading;
 export const selectAuthError = (state: AuthState) => state.error;
-
-// ─── Permission check helper ──────────────────────────────────
-export function useHasPermission(permission: string): boolean {
-  const user = useAuthStore(selectUser);
-  if (!user) return false;
-  // Admin role has all permissions
-  if (user.roles.some((r) => r.name === "admin")) return true;
-  // For more granular checks, fetch permissions from /auth/me
-  // For now: manager and staff have read access to most things
-  return user.roles.length > 0;
-}

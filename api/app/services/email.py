@@ -28,10 +28,25 @@ sending them. Useful for local development.
 from __future__ import annotations
 
 import logging
-import os
+from html import escape
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+
+class _SafeFields:
+    """Text from an object, escaped for use in an HTML email."""
+
+    def __init__(self, source):
+        self._source = source
+
+    def __getattr__(self, name):
+        value = getattr(self._source, name)
+        return escape(value) if isinstance(value, str) else value
+
+
+def safe(source) -> _SafeFields:
+    return _SafeFields(source)
 
 
 # ─── Low-level send ───────────────────────────────────────────
@@ -58,7 +73,7 @@ def _send(
     api_key  = getattr(settings, "SENDGRID_API_KEY",   "")
     from_email = getattr(settings, "SENDGRID_FROM_EMAIL", "noreply@partyparadise.com")
     from_name  = getattr(settings, "SENDGRID_FROM_NAME",  "PartyParadise")
-    sandbox    = os.getenv("SENDGRID_SANDBOX", "").lower() in ("1", "true", "yes")
+    sandbox    = settings.SENDGRID_SANDBOX
 
     if not api_key:
         logger.warning("SENDGRID_API_KEY not set — email NOT sent to %s", to_email)
@@ -188,10 +203,10 @@ def send_invoice_email(
 
     content = f"""
       <div class="greeting">Your invoice is ready</div>
-      <p>Hi {client.first_name},</p>
+      <p>Hi {safe(client).first_name},</p>
       <p>Please find your invoice from PartyParadise. You can view the details below or download the attached PDF.</p>
       <div class="detail-box">
-        <div class="detail-row"><span class="detail-label">Invoice</span><span class="detail-value">{invoice.reference}</span></div>
+        <div class="detail-row"><span class="detail-label">Invoice</span><span class="detail-value">{safe(invoice).reference}</span></div>
         <div class="detail-row"><span class="detail-label">Total Amount</span><span class="detail-value amount">{amount_str}</span></div>
         <div class="detail-row"><span class="detail-label">Due Date</span><span class="detail-value">{due_str}</span></div>
       </div>
@@ -233,17 +248,17 @@ def send_contract_email(
 
     content = f"""
       <div class="greeting">Your service agreement is ready to sign</div>
-      <p>Hi {client.first_name},</p>
-      <p>Your service agreement with PartyParadise is ready for review and signing. Please click the button below to read and sign your contract.</p>
+      <p>Hi {safe(client).first_name},</p>
+      <p>Your service agreement with PartyParadise is ready for review and signing. Please click the button below to read and sign your safe(contract).</p>
       <div class="detail-box">
-        <div class="detail-row"><span class="detail-label">Contract</span><span class="detail-value">{contract.reference}</span></div>
-        <div class="detail-row"><span class="detail-label">Event Date</span><span class="detail-value">{contract.event_date}</span></div>
-        {'<div class="detail-row"><span class="detail-label">Venue</span><span class="detail-value">' + (contract.venue or "—") + '</span></div>' if contract.venue else ''}
-        <div class="detail-row"><span class="detail-label">Total Value</span><span class="detail-value amount">GHS {contract.total_amount:,.2f}</span></div>
-        {'<div class="detail-row"><span class="detail-label">Deposit Due</span><span class="detail-value">GHS ' + f"{contract.deposit_amount:,.2f}" + '</span></div>' if contract.deposit_amount else ''}
+        <div class="detail-row"><span class="detail-label">Contract</span><span class="detail-value">{safe(contract).reference}</span></div>
+        <div class="detail-row"><span class="detail-label">Event Date</span><span class="detail-value">{safe(contract).event_date}</span></div>
+        {'<div class="detail-row"><span class="detail-label">Venue</span><span class="detail-value">' + (safe(contract).venue or "—") + '</span></div>' if safe(contract).venue else ''}
+        <div class="detail-row"><span class="detail-label">Total Value</span><span class="detail-value amount">GHS {safe(contract).total_amount:,.2f}</span></div>
+        {'<div class="detail-row"><span class="detail-label">Deposit Due</span><span class="detail-value">GHS ' + f"{safe(contract).deposit_amount:,.2f}" + '</span></div>' if safe(contract).deposit_amount else ''}
       </div>
       <a href="{signing_url}" class="cta-btn">Review &amp; Sign Contract →</a>
-      <p style="font-size:12px;color:#aaa;">This signing link expires in 48 hours. If you have any questions, please contact us directly.</p>
+      <p style="font-size:12px;color:#aaa;">This signing link expires in 7 days. If you have any questions, please contact us directly.</p>
     """
 
     plain = (
@@ -252,7 +267,7 @@ def send_contract_email(
         f"Event: {contract.event_date}\n"
         f"Total: GHS {contract.total_amount:,.2f}\n\n"
         f"Sign here: {signing_url}\n\n"
-        f"This link expires in 48 hours.\n\n"
+        f"This link expires in 7 days.\n\n"
         f"PartyParadise"
     )
 
@@ -284,12 +299,12 @@ def send_payment_confirmation(
 
     content = f"""
       <div class="greeting">Payment received ✓</div>
-      <p>Hi {client.first_name},</p>
-      <p>We've received your payment. Thank you!</p>
+      <p>Hi {safe(client).first_name},</p>
+      <p>We've received your safe(payment). Thank you!</p>
       <div class="detail-box">
-        <div class="detail-row"><span class="detail-label">Payment Ref</span><span class="detail-value">{payment.reference}</span></div>
-        <div class="detail-row"><span class="detail-label">Invoice</span><span class="detail-value">{invoice.reference}</span></div>
-        <div class="detail-row"><span class="detail-label">Amount Paid</span><span class="detail-value amount amount-paid">GHS {float(payment.amount):,.2f}</span></div>
+        <div class="detail-row"><span class="detail-label">Payment Ref</span><span class="detail-value">{safe(payment).reference}</span></div>
+        <div class="detail-row"><span class="detail-label">Invoice</span><span class="detail-value">{safe(invoice).reference}</span></div>
+        <div class="detail-row"><span class="detail-label">Amount Paid</span><span class="detail-value amount amount-paid">GHS {float(safe(payment).amount):,.2f}</span></div>
         <div class="detail-row"><span class="detail-label">{"Fully Settled" if is_settled else "Remaining Balance"}</span>
           <span class="detail-value {'amount-paid' if is_settled else 'amount-due'}">
             {"✓ Settled" if is_settled else f"GHS {amount_due:,.2f}"}
@@ -317,35 +332,25 @@ def send_payment_confirmation(
 
 # ─── Portal invite ────────────────────────────────────────────
 
-def send_portal_invite(
-    client,
-    temp_password: str,
-    portal_url: str,
-) -> bool:
+def send_portal_invite(client, setup_url: str) -> bool:
     """
-    Send a client portal activation email with a temporary password.
+    Send a client a one-time link to choose their portal password.
     """
     full_name = f"{client.first_name} {client.last_name}"
 
     content = f"""
       <div class="greeting">Your client portal is ready</div>
-      <p>Hi {client.first_name},</p>
+      <p>Hi {safe(client).first_name},</p>
       <p>PartyParadise has set up a client portal for you. You can use it to view your bookings, invoices, and contracts at any time.</p>
-      <div class="detail-box">
-        <div class="detail-row"><span class="detail-label">Login Email</span><span class="detail-value">{client.email}</span></div>
-        <div class="detail-row"><span class="detail-label">Temporary Password</span><span class="detail-value" style="font-family:monospace">{temp_password}</span></div>
-      </div>
-      <a href="{portal_url}" class="cta-btn">Access Your Portal →</a>
-      <p style="font-size:12px;color:#aaa;">Please change your password after your first login. If you did not request this, please ignore this email.</p>
+      <a href="{setup_url}" class="cta-btn">Set Your Password →</a>
+      <p style="font-size:12px;color:#aaa;">This link works once and expires in 48 hours. If you did not expect this, you can ignore this email.</p>
     """
 
     plain = (
         f"Hi {client.first_name},\n\n"
         f"Your PartyParadise client portal is ready.\n\n"
-        f"Login: {client.email}\n"
-        f"Temp password: {temp_password}\n\n"
-        f"Access portal: {portal_url}\n\n"
-        f"Change your password after first login.\n\n"
+        f"Set your password: {setup_url}\n\n"
+        f"This link works once and expires in 48 hours.\n\n"
         f"PartyParadise"
     )
 
@@ -354,6 +359,65 @@ def send_portal_invite(
         to_name=full_name,
         subject="Your PartyParadise client portal is ready",
         html_body=_wrap_html(content, preheader="View your bookings and invoices online"),
+        text_body=plain,
+    )
+
+
+# ─── Staff account emails ─────────────────────────────────────
+
+def send_staff_invite(user, setup_url: str) -> bool:
+    """
+    Invite a new staff member to choose their password.
+    """
+    content = f"""
+      <div class="greeting">Welcome to PartyParadise</div>
+      <p>Hi {safe(user).full_name},</p>
+      <p>Your staff account is ready. Choose a password to sign in. This link works once and expires in 48 hours.</p>
+      <a href="{setup_url}" class="cta-btn">Set Your Password →</a>
+    """
+
+    plain = (
+        f"Hi {user.full_name},\n\n"
+        f"Your PartyParadise staff account is ready.\n\n"
+        f"Set your password: {setup_url}\n\n"
+        f"This link works once and expires in 48 hours.\n\n"
+        f"PartyParadise"
+    )
+
+    return _send(
+        to_email=user.email,
+        to_name=user.full_name,
+        subject="Set up your PartyParadise account",
+        html_body=_wrap_html(content, preheader="Choose a password to sign in"),
+        text_body=plain,
+    )
+
+
+def send_password_reset(user, reset_url: str) -> bool:
+    """
+    Send a staff member a password reset link.
+    """
+    content = f"""
+      <div class="greeting">Reset your password</div>
+      <p>Hi {safe(user).full_name},</p>
+      <p>Use the button below to choose a new password. This link works once and expires in 1 hour.</p>
+      <a href="{reset_url}" class="cta-btn">Reset Password →</a>
+      <p style="font-size:12px;color:#aaa;">If you did not request this, you can ignore this email.</p>
+    """
+
+    plain = (
+        f"Hi {user.full_name},\n\n"
+        f"Reset your password: {reset_url}\n\n"
+        f"This link works once and expires in 1 hour. "
+        f"If you did not request this, you can ignore this email.\n\n"
+        f"PartyParadise"
+    )
+
+    return _send(
+        to_email=user.email,
+        to_name=user.full_name,
+        subject="Reset your PartyParadise password",
+        html_body=_wrap_html(content, preheader="Choose a new password"),
         text_body=plain,
     )
 
@@ -370,15 +434,15 @@ def send_contract_signed_notification(
     """
     content = f"""
       <div class="greeting">Contract signed ✓</div>
-      <p>Hi {staff_name},</p>
-      <p><strong>{contract.client_name}</strong> has signed their service agreement.</p>
+      <p>Hi {escape(staff_name)},</p>
+      <p><strong>{safe(contract).client_name}</strong> has signed their service agreement.</p>
       <div class="detail-box">
-        <div class="detail-row"><span class="detail-label">Contract</span><span class="detail-value">{contract.reference}</span></div>
-        <div class="detail-row"><span class="detail-label">Event Date</span><span class="detail-value">{contract.event_date}</span></div>
-        <div class="detail-row"><span class="detail-label">Total Value</span><span class="detail-value">GHS {contract.total_amount:,.2f}</span></div>
-        <div class="detail-row"><span class="detail-label">Signed At</span><span class="detail-value">{contract.signed_at.strftime("%d %b %Y %H:%M") if contract.signed_at else "—"}</span></div>
+        <div class="detail-row"><span class="detail-label">Contract</span><span class="detail-value">{safe(contract).reference}</span></div>
+        <div class="detail-row"><span class="detail-label">Event Date</span><span class="detail-value">{safe(contract).event_date}</span></div>
+        <div class="detail-row"><span class="detail-label">Total Value</span><span class="detail-value">GHS {safe(contract).total_amount:,.2f}</span></div>
+        <div class="detail-row"><span class="detail-label">Signed At</span><span class="detail-value">{safe(contract).signed_at.strftime("%d %b %Y %H:%M") if safe(contract).signed_at else "—"}</span></div>
       </div>
-      <p>Log in to the dashboard to confirm the booking and generate an invoice.</p>
+      <p>Log in to the dashboard to confirm the booking and generate an safe(invoice).</p>
     """
 
     plain = (

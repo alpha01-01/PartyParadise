@@ -1,9 +1,9 @@
-﻿// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+﻿// ─────────────────────────────────────────────────────────────
 // packages/types/src/index.ts
 // Shared types used by web, mobile, and API response parsing
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────
 
-// â”€â”€â”€ Pagination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Pagination ───────────────────────────────────────────────
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
@@ -17,7 +17,7 @@ export interface PaginationParams {
   page_size?: number;
 }
 
-// â”€â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Auth ─────────────────────────────────────────────────────
 export interface UserRole {
   id: string;
   name: string;
@@ -47,7 +47,7 @@ export interface TokenResponse {
   user: User;
 }
 
-// â”€â”€â”€ Clients â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Clients ──────────────────────────────────────────────────
 export type ClientStatus = "lead" | "prospect" | "active" | "past" | "lost";
 export type ClientType = "individual" | "corporate" | "planner";
 export type InteractionChannel = "whatsapp" | "call" | "email" | "in_person" | "instagram";
@@ -140,7 +140,7 @@ export interface CreateInteractionRequest {
   summary: string;
 }
 
-// â”€â”€â”€ Bookings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Bookings ─────────────────────────────────────────────────
 export type ServiceType = "decor" | "photobooth_360" | "photobooth_rental" | "combo";
 export type BookingStatus =
   | "inquiry"
@@ -184,6 +184,7 @@ export interface BookingEquipment {
 }
 
 export interface BookingInvoiceSummary {
+  id: string;
   reference: string;
   total_amount: number;
   amount_paid: number;
@@ -246,7 +247,7 @@ export interface UpdateStatusRequest {
   note?: string;
 }
 
-// â”€â”€â”€ Invoicing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Invoicing ────────────────────────────────────────────────
 export type InvoiceStatus = "draft" | "sent" | "partial" | "paid" | "overdue" | "cancelled";
 export type PaymentMethod =
   | "momo_mtn"
@@ -307,7 +308,7 @@ export interface RecordPaymentRequest {
   notes?: string;
 }
 
-// â”€â”€â”€ Inventory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Inventory ────────────────────────────────────────────────
 export type EquipmentStatus = "available" | "reserved" | "deployed" | "maintenance" | "retired";
 
 export interface InventoryItem {
@@ -324,6 +325,46 @@ export interface InventoryItem {
   is_active: boolean;
 }
 
+export interface InventoryTransaction {
+  id: string;
+  item_id: string;
+  user_id: string;
+  booking_id: string | null;
+  type: string;
+  quantity: number;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface InventoryImportError {
+  row: number;
+  message: string;
+}
+
+export interface InventoryImportResult {
+  filename: string;
+  imported: number;
+  failed: number;
+  errors: InventoryImportError[];
+  required_columns: string[];
+  optional_columns: string[];
+}
+
+export interface ShopSale {
+  id: string;
+  reference: string;
+  status: string;
+  total_amount: number;
+  amount_paid: number;
+  payment_method: string | null;
+  paid_at: string | null;
+  created_at: string | null;
+  customer_name: string;
+  customer_phone: string | null;
+  notes: string | null;
+  item_count: number;
+}
+
 export interface Equipment {
   id: string;
   name: string;
@@ -338,7 +379,7 @@ export interface Equipment {
   is_active: boolean;
 }
 
-// â”€â”€â”€ Staff â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Staff ────────────────────────────────────────────────────
 export type EmploymentType = "full_time" | "part_time" | "freelance" | "daily_labour";
 export type ShiftStatus = "scheduled" | "confirmed" | "completed" | "no_show" | "cancelled";
 
@@ -368,7 +409,7 @@ export interface Shift {
   notes: string | null;
 }
 
-// â”€â”€â”€ Reports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Reports ─────────────────────────────────────────────────
 export interface DashboardSummary {
   bookings_this_month: number;
   upcoming_bookings: number;
@@ -415,7 +456,7 @@ export interface BookingProfitabilitySummary {
   margin_pct: number;
 }
 
-// â”€â”€â”€ Contracts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Contracts ────────────────────────────────────────────────
 export type ContractStatus = "draft" | "sent" | "signed" | "expired" | "cancelled";
 
 export interface Contract {
@@ -447,7 +488,7 @@ export interface ContractTemplate {
   updated_at: string;
 }
 
-// â”€â”€â”€ Portal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Portal ───────────────────────────────────────────────────
 export interface PortalNotification {
   id: string;
   type: string;

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { portalApi, setPortalAccessToken, setPortalRefreshToken } from "@/lib/api";
+import { normaliseError, portalApi, setPortalAccessToken, setPortalRefreshToken } from "@/lib/api";
 
 export default function PortalLoginPage() {
   const router = useRouter();
@@ -28,8 +28,7 @@ export default function PortalLoginPage() {
       setPortalRefreshToken(data.refresh_token);
       router.replace("/portal/dashboard");
     } catch (err: unknown) {
-      const msg =
-        (err as { message?: string })?.message ?? "Invalid email or password";
+      const msg = normaliseError(err).message;
       setError(msg);
     } finally {
       setLoading(false);

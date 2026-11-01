@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Integer, Numeric, Date, Time
+from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Integer, Numeric, Date, Time, Index, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -24,7 +24,7 @@ class StaffProfile(Base):
     created_at        = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user              = relationship("User", back_populates="staff_profile")
-    shifts            = relationship("Shift", back_populates="staff", cascade="all, delete-orphan")
+    shifts            = relationship("Shift", back_populates="staff")
     attendance        = relationship("Attendance", back_populates="staff")
     payroll_entries   = relationship("PayrollEntry", back_populates="staff")
     leave_requests    = relationship("LeaveRequest", back_populates="staff", cascade="all, delete-orphan")
@@ -32,6 +32,12 @@ class StaffProfile(Base):
 
 class Shift(Base):
     __tablename__ = "shifts"
+    __table_args__ = (
+        Index("idx_shifts_assigned_by", "assigned_by"),
+        Index("idx_shifts_booking_id", "booking_id"),
+        Index("idx_shifts_shift_date", "shift_date"),
+        Index("idx_shifts_staff_id", "staff_id"),
+    )
 
     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     staff_id    = Column(UUID(as_uuid=True), ForeignKey("staff_profiles.id", ondelete="RESTRICT"), nullable=False)
@@ -54,6 +60,11 @@ class Shift(Base):
 
 class Attendance(Base):
     __tablename__ = "attendance"
+    __table_args__ = (
+        CheckConstraint("hours_worked IS NULL OR hours_worked >= 0", name="ck_attendance_hours"),
+        Index("idx_attendance_shift_id", "shift_id"),
+        Index("idx_attendance_staff_id", "staff_id"),
+    )
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     shift_id     = Column(UUID(as_uuid=True), ForeignKey("shifts.id", ondelete="CASCADE"), nullable=False, unique=True)
@@ -84,6 +95,10 @@ class PayrollPeriod(Base):
 
 class PayrollEntry(Base):
     __tablename__ = "payroll_entries"
+    __table_args__ = (
+        Index("idx_payroll_entries_period_id", "period_id"),
+        Index("idx_payroll_entries_staff_id", "staff_id"),
+    )
 
     id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     period_id      = Column(UUID(as_uuid=True), ForeignKey("payroll_periods.id", ondelete="RESTRICT"), nullable=False)
@@ -103,6 +118,11 @@ class PayrollEntry(Base):
 
 class LeaveRequest(Base):
     __tablename__ = "leave_requests"
+    __table_args__ = (
+        Index("idx_leave_requests_reviewed_by", "reviewed_by"),
+        CheckConstraint("end_date >= start_date AND days_requested > 0", name="ck_leave_requests_dates"),
+        Index("idx_leave_requests_staff_id", "staff_id"),
+    )
 
     id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     staff_id       = Column(UUID(as_uuid=True), ForeignKey("staff_profiles.id", ondelete="RESTRICT"), nullable=False)

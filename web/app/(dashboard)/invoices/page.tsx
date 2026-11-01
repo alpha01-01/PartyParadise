@@ -1,12 +1,14 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   useInvoices,
   useInvoice,
   recordPayment,
   sendInvoice,
+  fetchInvoiceStats,
+  type InvoiceStats,
   generateInvoiceFromBooking,
 } from "@/hooks";
 import { useDashboard } from "@/hooks";
@@ -24,7 +26,7 @@ import { usePdfDownload } from "@/hooks/usePdfDownload";
 import type { Invoice, InvoiceStatus, PaymentMethod } from "@/lib/types";
 import { downloadCsv } from "@/lib/export";
 
-// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Constants ────────────────────────────────────────────────
 const FILTER_TABS: { value: InvoiceStatus | "all"; label: string }[] = [
   { value: "all",      label: "All" },
   { value: "draft",    label: "Draft" },
@@ -39,7 +41,7 @@ const PAYMENT_METHODS: PaymentMethod[] = [
   "bank_transfer", "cash", "paystack", "cheque",
 ];
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ─────────────────────────────────────────────────────
 export default function InvoicesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -62,21 +64,19 @@ export default function InvoicesPage() {
 
   const selected = invoices.find((i) => i.id === selectedId) ?? null;
 
-  // Aggregate stats from current data
-  const stats = {
-    outstanding: invoices
-      .filter((i) => ["sent", "partial", "overdue"].includes(i.status))
-      .reduce((s, i) => s + i.amount_due, 0),
-    overdue: invoices
-      .filter((i) => i.status === "overdue")
-      .reduce((s, i) => s + i.amount_due, 0),
-    collected: invoices.reduce((s, i) => s + i.amount_paid, 0),
-    drafts: invoices.filter((i) => i.status === "draft").length,
-    overdueCount: invoices.filter((i) => i.status === "overdue").length,
-    outstandingCount: invoices.filter((i) =>
-      ["sent", "partial", "overdue"].includes(i.status)
-    ).length,
-  };
+  // Totals across every invoice, not just this page
+  const [stats, setStats] = useState<InvoiceStats>({
+    outstanding: 0,
+    outstanding_count: 0,
+    overdue: 0,
+    overdue_count: 0,
+    collected_this_month: 0,
+    drafts: 0,
+  });
+
+  useEffect(() => {
+    fetchInvoiceStats().then(setStats).catch(() => undefined);
+  }, [invoices]);
 
   function handleExport() {
     downloadCsv("invoices.csv", invoices.map((invoice) => ({
@@ -113,10 +113,13 @@ export default function InvoicesPage() {
 
   async function handleSendInvoice(invoiceId: string) {
     try {
-      await sendInvoice(invoiceId);
+      const sent = await sendInvoice(invoiceId);
+      if (!sent.email_sent) {
+        alert("Invoice marked as sent, but the email was not delivered. Share it with the client another way.");
+      }
       refresh();
     } catch (err) {
-      console.error(normaliseError(err).message);
+      alert(normaliseError(err).message);
     }
   }
 
@@ -131,8 +134,8 @@ export default function InvoicesPage() {
           </p>
           <div className="pp-ops-hero-meta">
             <span>{total} invoices in this view</span>
-            <span>{stats.outstandingCount} awaiting payment</span>
-            <span>{stats.overdueCount} overdue and needing follow-up</span>
+            <span>{stats.outstanding_count} awaiting payment</span>
+            <span>{stats.overdue_count} overdue and needing follow-up</span>
           </div>
         </div>
         <div className="pp-ops-hero-actions">
@@ -148,18 +151,18 @@ export default function InvoicesPage() {
         <StatCard
           label="Total Outstanding"
           value={formatCurrency(stats.outstanding)}
-          sub={`${stats.outstandingCount} invoices`}
+          sub={`${stats.outstanding_count} invoices`}
           highlight
         />
         <StatCard
           label="Overdue"
           value={formatCurrency(stats.overdue)}
-          sub={`${stats.overdueCount} past due`}
-          danger={stats.overdueCount > 0}
+          sub={`${stats.overdue_count} past due`}
+          danger={stats.overdue_count > 0}
         />
         <StatCard
           label="Collected This Month"
-          value={formatCurrency(stats.collected)}
+          value={formatCurrency(stats.collected_this_month)}
           sub={`${invoices.filter((i) => i.status === "paid").length} paid`}
           positive
         />
@@ -220,7 +223,7 @@ export default function InvoicesPage() {
             </div>
           ) : invoices.length === 0 ? (
             <div className="pp-card pp-empty">
-              <div className="pp-empty-icon">ðŸ§¾</div>
+              <div className="pp-empty-icon">🧾</div>
               <div className="pp-empty-title">No invoices found</div>
               <p className="pp-empty-sub">Adjust your filters or create a new invoice</p>
             </div>
@@ -260,7 +263,7 @@ export default function InvoicesPage() {
               <div className="pp-pagination">
                 <span>Showing {invoices.length} of {total} invoices</span>
                 <div className="pp-pg-btns">
-                  <button className="pp-pg-btn" onClick={() => goToPage(page - 1)} disabled={page <= 1}>â€¹</button>
+                  <button className="pp-pg-btn" onClick={() => goToPage(page - 1)} disabled={page <= 1}>‹</button>
                   {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => (
                     <button
                       key={i + 1}
@@ -270,7 +273,7 @@ export default function InvoicesPage() {
                       {i + 1}
                     </button>
                   ))}
-                  <button className="pp-pg-btn" onClick={() => goToPage(page + 1)} disabled={page >= totalPages}>â€º</button>
+                  <button className="pp-pg-btn" onClick={() => goToPage(page + 1)} disabled={page >= totalPages}>›</button>
                 </div>
               </div>
             </div>
@@ -305,7 +308,7 @@ export default function InvoicesPage() {
   );
 }
 
-// â”€â”€â”€ Invoice row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Invoice row ──────────────────────────────────────────────
 function InvoiceRow({
   invoice: inv,
   selected,
@@ -348,7 +351,7 @@ function InvoiceRow({
       </td>
       <td className="pp-amount-cell">{formatCurrency(inv.total_amount)}</td>
       <td style={{ color: "var(--pp-green)", fontWeight: 500 }}>
-        {inv.amount_paid > 0 ? formatCurrency(inv.amount_paid) : "â€”"}
+        {inv.amount_paid > 0 ? formatCurrency(inv.amount_paid) : "—"}
       </td>
       <td style={{
         fontWeight: 600,
@@ -358,7 +361,7 @@ function InvoiceRow({
             ? "var(--pp-red)"
             : "var(--pp-gold)",
       }}>
-        {inv.amount_due === 0 ? "âœ“ Settled" : formatCurrency(inv.amount_due)}
+        {inv.amount_due === 0 ? "✓ Settled" : formatCurrency(inv.amount_due)}
       </td>
       <td>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -384,7 +387,7 @@ function InvoiceRow({
             : undefined,
         fontWeight: isOverdue ? 500 : undefined,
       }}>
-        {inv.due_date ? formatDate(inv.due_date, "short") : "â€”"}
+        {inv.due_date ? formatDate(inv.due_date, "short") : "—"}
         {isOverdue && " (overdue)"}
       </td>
       <td>
@@ -432,7 +435,7 @@ function InvoiceRow({
   );
 }
 
-// â”€â”€â”€ Detail panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Detail panel ─────────────────────────────────────────────
 function InvoiceDetailPanel({
   invoice: inv,
   onClose,
@@ -475,7 +478,7 @@ function InvoiceDetailPanel({
               className="pp-inv-amount-value"
               style={{ color: data.amount_due === 0 ? "var(--pp-green)" : data.status === "overdue" ? "var(--pp-red)" : "var(--pp-gold)" }}
             >
-              {data.amount_due === 0 ? "âœ“ Settled" : formatCurrency(data.amount_due)}
+              {data.amount_due === 0 ? "✓ Settled" : formatCurrency(data.amount_due)}
             </div>
           </div>
         </div>
@@ -513,12 +516,12 @@ function InvoiceDetailPanel({
           <div className="pp-dp-section-header">
             <span className="pp-dp-section-title">Details</span>
           </div>
-          <DpField label="Booking"   value={data.booking_id ? `BK-â€¦${data.booking_id.slice(-4)}` : "â€”"} />
+          <DpField label="Booking"   value={data.booking_id ? `BK-…${data.booking_id.slice(-4)}` : "—"} />
           <DpField label="Issued"    value={data.issued_at ? formatDate(data.issued_at) : "Not yet sent"} />
-          <DpField label="Due date"  value={data.due_date ? formatDate(data.due_date) : "â€”"} />
+          <DpField label="Due date"  value={data.due_date ? formatDate(data.due_date) : "—"} />
           <DpField label="Subtotal"  value={formatCurrency(data.subtotal)} />
           {data.discount_amount > 0 && (
-            <DpField label="Discount" value={`âˆ’${formatCurrency(data.discount_amount)}`} />
+            <DpField label="Discount" value={`−${formatCurrency(data.discount_amount)}`} />
           )}
           {data.tax_amount > 0 && (
             <DpField label="Tax" value={formatCurrency(data.tax_amount)} />
@@ -537,7 +540,7 @@ function InvoiceDetailPanel({
                   <div style={{ fontSize: 12.5, color: "var(--pp-text-2)" }}>{item.description}</div>
                   {item.quantity > 1 && (
                     <div style={{ fontSize: 11, color: "var(--pp-text-3)" }}>
-                      {item.quantity} Ã— {formatCurrency(item.unit_price)}
+                      {item.quantity} × {formatCurrency(item.unit_price)}
                     </div>
                   )}
                 </div>
@@ -557,7 +560,7 @@ function InvoiceDetailPanel({
         <div className="pp-dp-section">
           <div className="pp-dp-section-header">
             <span className="pp-dp-section-title">
-              Payments ({loading ? "â€¦" : payments.length})
+              Payments ({loading ? "…" : payments.length})
             </span>
           </div>
           {loading ? (
@@ -575,7 +578,7 @@ function InvoiceDetailPanel({
                     {PAYMENT_METHOD_LABELS[p.method] ?? p.method}
                   </div>
                   <div style={{ fontSize: 11, color: "var(--pp-text-3)" }}>
-                    {formatDate(p.paid_at)} &nbsp;Â·&nbsp; {p.reference ?? "â€”"}
+                    {formatDate(p.paid_at)} &nbsp;·&nbsp; {p.reference ?? "—"}
                   </div>
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "var(--pp-green)" }}>
@@ -590,7 +593,7 @@ function InvoiceDetailPanel({
   );
 }
 
-// â”€â”€â”€ Record payment modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Record payment modal ──────────────────────────────────────
 function RecordPaymentModal({
   invoice,
   onClose,
@@ -774,7 +777,7 @@ function RecordPaymentModal({
   );
 }
 
-// â”€â”€â”€ Small components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Small components ─────────────────────────────────────────
 function StatCard({
   label, value, sub, highlight = false, danger = false, positive = false,
 }: {
@@ -808,8 +811,8 @@ function DpField({ label, value }: { label: string; value: string }) {
   );
 }
 
-// â”€â”€â”€ Icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€â”€ PDF download button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Icons ────────────────────────────────────────────────────
+// ─── PDF download button ─────────────────────────────────────
 function DownloadPdfButton({ invoiceId, reference }: { invoiceId: string; reference: string }) {
   const { download, loading } = usePdfDownload();
   return (

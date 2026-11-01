@@ -1,13 +1,15 @@
 ﻿"use client";
 
 import { useState } from "react";
+import { generateInvoiceFromBooking, useStaff, useEquipment } from "@/hooks";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useBooking, updateBookingStatus, addBookingNote, assignStaff, allocateEquipment } from "@/hooks/useBookings";
+import { useBooking, updateBookingStatus, addBookingNote, assignStaff, allocateEquipment, updateBookingNote } from "@/hooks/useBookings";
+import { normaliseError } from "@/lib/api";
 import { formatCurrency, formatDate, BOOKING_STATUS_LABELS, SERVICE_TYPE_LABELS, cn } from "@/lib/utils";
 import type { BookingStatus } from "@/lib/types";
 
-// â”€â”€â”€ Status pipeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Status pipeline ──────────────────────────────────────────
 const STATUS_STEPS: BookingStatus[] = [
   "inquiry", "quoted", "confirmed", "in_progress", "completed",
 ];
@@ -34,7 +36,7 @@ const PREV_STATUS: Partial<Record<BookingStatus, BookingStatus>> = {
   in_progress: "confirmed",
 };
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ─────────────────────────────────────────────────────
 export default function BookingDetailPage() {
   const params        = useParams();
   const router        = useRouter();
@@ -44,16 +46,88 @@ export default function BookingDetailPage() {
   const { booking, loading, error, refresh } = useBooking(id);
   const [noteText, setNoteText]       = useState("");
   const [postingNote, setPostingNote] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
   const [advancing, setAdvancing]     = useState(false);
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [showCreatedBanner]           = useState(searchParams.get("created") === "true");
+
+  // Assign staff modal state
+    // Allocate equipment modal state
+    const [showAllocateEquipment, setShowAllocateEquipment] = useState(false);
+    const [selectedEquipment, setSelectedEquipment] = useState("");
+    const [equipmentQty, setEquipmentQty] = useState(1);
+    const [allocating, setAllocating] = useState(false);
+    const { equipment, loading: equipmentLoading } = useEquipment(booking?.event_date);
+
+    async function handleAllocateEquipment(e: React.FormEvent) {
+      e.preventDefault();
+      if (!selectedEquipment || !equipmentQty) return;
+      setAllocating(true);
+      setActionError(null);
+      try {
+        await allocateEquipment(id, selectedEquipment, equipmentQty);
+        setShowAllocateEquipment(false);
+        setSelectedEquipment("");
+        setEquipmentQty(1);
+        refresh();
+      } catch (err) {
+        setActionError(normaliseError(err).message);
+      }
+      setAllocating(false);
+    }
+  const [showAssignStaff, setShowAssignStaff] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState("");
+  const [selectedRole, setSelectedRole] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const { staff, loading: staffLoading } = useStaff({ is_active: true });
+
+  async function handleAssignStaff(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedStaff || !selectedRole) return;
+    setAssigning(true);
+    setActionError(null);
+    try {
+      await assignStaff(id, selectedStaff, selectedRole);
+      setShowAssignStaff(false);
+      setSelectedStaff("");
+      setSelectedRole("");
+      refresh();
+    } catch (err) {
+      setActionError(normaliseError(err).message);
+    }
+    setAssigning(false);
+  }
 
   async function handleAdvance(newStatus: BookingStatus) {
     setAdvancing(true);
+    setActionError(null);
     try {
       await updateBookingStatus(id, newStatus);
       refresh();
-    } catch { /* noop */ }
+    } catch (err) {
+      setActionError(normaliseError(err).message);
+    }
     setAdvancing(false);
+  }
+
+  async function handleGenerateInvoice() {
+    setCreatingInvoice(true);
+    setActionError(null);
+    try {
+      if (booking?.invoice?.id) {
+        router.push(`/invoices/${booking.invoice.id}`);
+        return;
+      }
+      const invoice = await generateInvoiceFromBooking(id);
+      await refresh();
+      router.push(`/invoices/${invoice.id}`);
+    } catch (err) {
+      setActionError(normaliseError(err).message);
+    }
+    setCreatingInvoice(false);
   }
 
   async function handlePostNote(e: React.FormEvent) {
@@ -66,6 +140,19 @@ export default function BookingDetailPage() {
       refresh();
     } catch { /* noop */ }
     setPostingNote(false);
+  }
+
+  async function handleEditNote(noteId: string, note: string, isInternal: boolean) {
+    setSavingEdit(true);
+    try {
+      await updateBookingNote(id, noteId, note, isInternal);
+      setEditingNoteId(null);
+      setEditingNoteText("");
+      refresh();
+    } catch {
+      // Optionally show error
+    }
+    setSavingEdit(false);
   }
 
   if (loading) return <LoadingState />;
@@ -86,7 +173,7 @@ export default function BookingDetailPage() {
           borderRadius: "var(--pp-radius-sm)", fontSize: 13, color: "var(--pp-green)",
           display: "flex", alignItems: "center", gap: 8,
         }}>
-          âœ“ Booking <strong>{booking.reference}</strong> created successfully
+          ✓ Booking <strong>{booking.reference}</strong> created successfully
         </div>
       )}
 
@@ -96,7 +183,7 @@ export default function BookingDetailPage() {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div>
             <h1 className="pp-bk-title">
-              {booking.client_name} â€” {booking.event_type ?? SERVICE_TYPE_LABELS[booking.service_type]}
+              {booking.client_name} — {booking.event_type ?? SERVICE_TYPE_LABELS[booking.service_type]}
             </h1>
             <div className="pp-bk-meta">
               {booking.event_date && (
@@ -120,9 +207,15 @@ export default function BookingDetailPage() {
             </span>
           </div>
           <div className="pp-bk-actions">
-            <Link href={`/invoices/new?booking=${id}`} className="pp-btn pp-btn-primary">
-              Generate Invoice
-            </Link>
+            <button
+              type="button"
+              className={cn("pp-btn pp-btn-primary", creatingInvoice && "pp-btn--loading")}
+              onClick={handleGenerateInvoice}
+              disabled={creatingInvoice}
+            >
+              {creatingInvoice && <span className="pp-spinner" />}
+              <span>Generate Invoice</span>
+            </button>
             <Link href={`/contracts?booking=${id}`} className="pp-btn pp-btn-ghost">
               Generate Contract
             </Link>
@@ -142,6 +235,23 @@ export default function BookingDetailPage() {
         </div>
       </div>
 
+      {actionError && (
+        <div
+          style={{
+            marginTop: 12,
+            marginBottom: 14,
+            padding: "10px 16px",
+            borderRadius: "var(--pp-radius-sm)",
+            border: "1px solid rgba(224,90,74,0.2)",
+            background: "rgba(224,90,74,0.08)",
+            color: "var(--pp-red)",
+            fontSize: 12.5,
+          }}
+        >
+          {actionError}
+        </div>
+      )}
+
       {/* Status timeline */}
       {!isCancelled && (
         <div className="pp-card pp-bk-timeline">
@@ -159,7 +269,7 @@ export default function BookingDetailPage() {
                       isActive && "pp-step-dot--active",
                       isFuture && "pp-step-dot--future",
                     )}>
-                      {isDone ? "âœ“" : i + 1}
+                      {isDone ? "✓" : i + 1}
                     </div>
                     <div className={cn(
                       "pp-step-label",
@@ -186,7 +296,7 @@ export default function BookingDetailPage() {
                 onClick={() => handleAdvance(prevStatus)}
                 disabled={advancing}
               >
-                â† Move to {BOOKING_STATUS_LABELS[prevStatus]}
+                ← Move to {BOOKING_STATUS_LABELS[prevStatus]}
               </button>
             )}
             {nextStatus && (
@@ -197,7 +307,7 @@ export default function BookingDetailPage() {
                 disabled={advancing}
               >
                 {advancing && <span className="pp-spinner" />}
-                <span>Advance to {BOOKING_STATUS_LABELS[nextStatus]} â†’</span>
+                <span>Advance to {BOOKING_STATUS_LABELS[nextStatus]} →</span>
               </button>
             )}
           </div>
@@ -239,7 +349,7 @@ export default function BookingDetailPage() {
           <div className="pp-card" style={{ padding: 0 }}>
             <div className="pp-card-header">
               <span className="pp-card-title">Staff Assigned</span>
-              <button className="pp-card-link">+ Assign</button>
+              <button className="pp-card-link" onClick={() => setShowAssignStaff(true)}>+ Assign</button>
             </div>
             <div style={{ padding: "10px 18px", display: "flex", flexWrap: "wrap", gap: 6 }}>
               {booking.staff?.length > 0 ? (
@@ -247,21 +357,72 @@ export default function BookingDetailPage() {
                   <span key={s.id} className="pp-chip">
                     <span className="pp-chip-av">{s.user_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase()}</span>
                     {s.user_name}
-                    <span style={{ color: "var(--pp-text-3)", fontSize: 11 }}>Â· {s.role}</span>
+                    <span style={{ color: "var(--pp-text-3)", fontSize: 11 }}>· {s.role}</span>
                   </span>
                 ))
               ) : (
                 <span style={{ fontSize: 12, color: "var(--pp-text-3)" }}>No staff assigned yet. Assign team members before the event date.</span>
               )}
-              <button className="pp-chip pp-chip-add">+ Add staff</button>
+              <button className="pp-chip pp-chip-add" onClick={() => setShowAssignStaff(true)}>+ Add staff</button>
             </div>
           </div>
+
+          {/* Assign Staff Modal */}
+          {showAssignStaff && (
+            <div className="pp-modal-overlay">
+              <div className="pp-modal">
+                <div className="pp-modal-header">
+                  <span className="pp-modal-title">Assign Staff</span>
+                  <button className="pp-dp-close" onClick={() => setShowAssignStaff(false)}>&times;</button>
+                </div>
+                <form onSubmit={handleAssignStaff}>
+                  <div className="pp-modal-body">
+                    <div className="pp-field">
+                      <label className="pp-field-label">Staff Member <span className="pp-required">*</span></label>
+                      <select
+                        className="pp-input"
+                        value={selectedStaff}
+                        onChange={e => setSelectedStaff(e.target.value)}
+                        required
+                        disabled={staffLoading}
+                      >
+                        <option value="">Select staff</option>
+                        {staff.map((member) => (
+                          <option key={member.id} value={member.user_id}>{member.full_name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="pp-field">
+                      <label className="pp-field-label">Role <span className="pp-required">*</span></label>
+                      <input
+                        className="pp-input"
+                        value={selectedRole}
+                        onChange={e => setSelectedRole(e.target.value)}
+                        placeholder="e.g. Photographer, Decorator"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="pp-modal-footer">
+                    <button type="button" className="pp-btn pp-btn-ghost" onClick={() => setShowAssignStaff(false)}>
+                      Cancel
+                    </button>
+                    <button type="submit" className={cn("pp-btn pp-btn-primary", assigning && "pp-btn--loading")}
+                      disabled={assigning || !selectedStaff || !selectedRole}
+                    >
+                      {assigning ? "Assigning..." : "Assign"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
 
           {/* Equipment */}
           <div className="pp-card" style={{ padding: 0 }}>
             <div className="pp-card-header">
               <span className="pp-card-title">Equipment</span>
-              <button className="pp-card-link">+ Allocate</button>
+              <button className="pp-card-link" onClick={() => setShowAllocateEquipment(true)}>+ Allocate</button>
             </div>
             <div style={{ padding: "10px 18px", display: "flex", flexWrap: "wrap", gap: 6 }}>
               {booking.equipment?.length > 0 ? (
@@ -271,9 +432,61 @@ export default function BookingDetailPage() {
               ) : (
                 <span style={{ fontSize: 12, color: "var(--pp-text-3)" }}>No equipment allocated yet</span>
               )}
-              <button className="pp-chip pp-chip-add">+ Add equipment</button>
+              <button className="pp-chip pp-chip-add" onClick={() => setShowAllocateEquipment(true)}>+ Add equipment</button>
             </div>
           </div>
+
+          {/* Allocate Equipment Modal */}
+          {showAllocateEquipment && (
+            <div className="pp-modal-overlay">
+              <div className="pp-modal">
+                <div className="pp-modal-header">
+                  <span className="pp-modal-title">Allocate Equipment</span>
+                  <button className="pp-dp-close" onClick={() => setShowAllocateEquipment(false)}>&times;</button>
+                </div>
+                <form onSubmit={handleAllocateEquipment}>
+                  <div className="pp-modal-body">
+                    <div className="pp-field">
+                      <label className="pp-field-label">Equipment <span className="pp-required">*</span></label>
+                      <select
+                        className="pp-input"
+                        value={selectedEquipment}
+                        onChange={e => setSelectedEquipment(e.target.value)}
+                        required
+                        disabled={equipmentLoading}
+                      >
+                        <option value="">Select equipment</option>
+                        {equipment.map((item) => (
+                          <option key={item.id} value={item.id}>{item.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="pp-field">
+                      <label className="pp-field-label">Quantity <span className="pp-required">*</span></label>
+                      <input
+                        className="pp-input"
+                        type="number"
+                        min={1}
+                        value={equipmentQty}
+                        onChange={e => setEquipmentQty(Number(e.target.value))}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="pp-modal-footer">
+                    <button type="button" className="pp-btn pp-btn-ghost" onClick={() => setShowAllocateEquipment(false)}>
+                      Cancel
+                    </button>
+                    <button type="submit" className={cn("pp-btn pp-btn-primary", allocating && "pp-btn--loading")}
+                      disabled={allocating || !selectedEquipment || !equipmentQty}
+                    >
+                      {allocating ? "Allocating..." : "Allocate"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
 
           {/* Notes */}
           <div className="pp-card" style={{ padding: 0 }}>
@@ -291,7 +504,46 @@ export default function BookingDetailPage() {
                       {formatDate(n.created_at, "short")}
                     </span>
                   </div>
-                  <p style={{ fontSize: 12.5, color: "var(--pp-text-2)" }}>{n.note}</p>
+                  {editingNoteId === n.id ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <textarea
+                        className="pp-input"
+                        style={{ fontSize: 12.5, minHeight: 48 }}
+                        value={editingNoteText}
+                        onChange={e => setEditingNoteText(e.target.value)}
+                        disabled={savingEdit}
+                      />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          className={cn("pp-btn pp-btn-primary", savingEdit && "pp-btn--loading")}
+                          style={{ fontSize: 12 }}
+                          disabled={savingEdit || !editingNoteText.trim()}
+                          onClick={() => handleEditNote(n.id, editingNoteText, n.is_internal)}
+                        >
+                          {savingEdit ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          className="pp-btn pp-btn-ghost"
+                          style={{ fontSize: 12 }}
+                          disabled={savingEdit}
+                          onClick={() => { setEditingNoteId(null); setEditingNoteText(""); }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <p style={{ fontSize: 12.5, color: "var(--pp-text-2)", margin: 0 }}>{n.note}</p>
+                      <button
+                        className="pp-btn pp-btn-ghost"
+                        style={{ fontSize: 11, marginLeft: 10, padding: "2px 10px" }}
+                        onClick={() => { setEditingNoteId(n.id); setEditingNoteText(n.note); }}
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))
             ) : (
@@ -300,7 +552,7 @@ export default function BookingDetailPage() {
             <form onSubmit={handlePostNote} style={{ padding: "12px 18px", display: "flex", gap: 8, borderTop: "1px solid var(--pp-border)" }}>
               <input
                 className="pp-input"
-                placeholder="Add a noteâ€¦"
+                placeholder="Add a note…"
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
                 style={{ flex: 1, fontSize: 12.5 }}
@@ -325,7 +577,7 @@ export default function BookingDetailPage() {
           <div className="pp-card" style={{ padding: 0 }}>
             <div className="pp-card-header">
               <span className="pp-card-title">Client</span>
-              <Link href={`/clients/${booking.client_id}`} className="pp-card-link">Full profile â†’</Link>
+              <Link href={`/clients/${booking.client_id}`} className="pp-card-link">Full profile →</Link>
             </div>
             <div style={{ padding: "12px 18px", display: "flex", alignItems: "center", gap: 10 }}>
               <div className="pp-client-av" style={{ width: 36, height: 36, fontSize: 11 }}>
@@ -344,7 +596,7 @@ export default function BookingDetailPage() {
           <div className="pp-card" style={{ padding: 0 }}>
             <div className="pp-card-header">
               <span className="pp-card-title">Invoice</span>
-              <Link href={`/invoices?booking=${id}`} className="pp-card-link">View â†’</Link>
+              <Link href={`/invoices?booking=${id}`} className="pp-card-link">View →</Link>
             </div>
             {booking.invoice ? (
               <>
@@ -361,9 +613,16 @@ export default function BookingDetailPage() {
                 <p style={{ fontSize: 12, color: "var(--pp-text-3)", marginBottom: 10 }}>
                   No invoice generated yet for this booking
                 </p>
-                <Link href={`/invoices/new?booking=${id}`} className="pp-btn pp-btn-ghost" style={{ fontSize: 12, width: "100%", justifyContent: "center" }}>
-                  Generate Invoice
-                </Link>
+                <button
+                  type="button"
+                  className={cn("pp-btn pp-btn-ghost", creatingInvoice && "pp-btn--loading")}
+                  style={{ fontSize: 12, width: "100%", justifyContent: "center" }}
+                  onClick={handleGenerateInvoice}
+                  disabled={creatingInvoice}
+                >
+                  {creatingInvoice && <span className="pp-spinner" />}
+                  <span>Generate Invoice</span>
+                </button>
               </div>
             )}
           </div>
@@ -372,14 +631,14 @@ export default function BookingDetailPage() {
           <div className="pp-card" style={{ padding: 0 }}>
             <div className="pp-card-header">
               <span className="pp-card-title">Contract</span>
-              <Link href={`/contracts?booking=${id}`} className="pp-card-link">View â†’</Link>
+              <Link href={`/contracts?booking=${id}`} className="pp-card-link">View →</Link>
             </div>
             {booking.contract ? (
               <>
                 <DpField label="Reference" value={booking.contract.reference} />
                 <DpField
                   label="Status"
-                  value={booking.contract.status === "signed" ? "Signed âœ“" : booking.contract.status}
+                  value={booking.contract.status === "signed" ? "Signed ✓" : booking.contract.status}
                   gold={booking.contract.status === "signed"}
                 />
                 {booking.contract.signed_at && (
@@ -428,7 +687,7 @@ export default function BookingDetailPage() {
   );
 }
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpers ──────────────────────────────────────────────────
 function DpField({ label, value, gold, danger }: { label: string; value: string; gold?: boolean; danger?: boolean }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", padding: "7px 18px", fontSize: 12.5, borderBottom: "1px solid var(--pp-border)" }}>
@@ -453,10 +712,10 @@ function LoadingState() {
 function ErrorState({ error }: { error: string | null }) {
   return (
     <div className="pp-card pp-empty">
-      <div className="pp-empty-icon">âš ï¸</div>
+      <div className="pp-empty-icon">⚠️</div>
       <div className="pp-empty-title">Booking not found</div>
       <p className="pp-empty-sub">{error ?? "This booking doesn't exist or was removed."}</p>
-      <Link href="/bookings" className="pp-btn pp-btn-ghost" style={{ marginTop: 12 }}>â† Back to bookings</Link>
+      <Link href="/bookings" className="pp-btn pp-btn-ghost" style={{ marginTop: 12 }}>← Back to bookings</Link>
     </div>
   );
 }
@@ -464,4 +723,3 @@ function ErrorState({ error }: { error: string | null }) {
 const CalIcon   = () => <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><rect x="1" y="1.5" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 4.5h12M4 1v1.5M10 1v1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>;
 const PinIcon   = () => <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 1C5.07 1 3.5 2.57 3.5 4.5c0 2.67 3.5 6.5 3.5 6.5s3.5-3.83 3.5-6.5C10.5 2.57 8.93 1 7 1z" stroke="currentColor" strokeWidth="1.2"/></svg>;
 const UsersIcon = () => <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="5.5" cy="4.5" r="2.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 12c0-2.48 2.02-4.5 4.5-4.5S10 9.52 10 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>;
-

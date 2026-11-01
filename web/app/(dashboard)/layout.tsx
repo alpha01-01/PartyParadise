@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/lib/auth";
+import { AuthGuard } from "@/components/AuthGuard";
 import { initials } from "@/lib/utils";
 
 // ─── Nav items ───────────────────────────────────────────────
@@ -31,6 +32,7 @@ const NAV = [
     items: [
       { href: "/inventory", label: "Inventory", icon: BoxIcon },
       { href: "/equipment", label: "Equipment", icon: CameraIcon },
+      { href: "/shop", label: "Shop", icon: StoreIcon },
     ],
   },
   {
@@ -56,6 +58,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   return (
+    <AuthGuard>
     <>
 
       {/* Mobile overlay */}
@@ -118,6 +121,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {!collapsed && <span>Collapse</span>}
             </button>
 
+            {collapsed && (
+              <button className="pp-user-logout" title="Log out" aria-label="Log out" onClick={() => logout()}>
+                <LogoutIcon />
+              </button>
+            )}
+
             {!collapsed && (
               <div className="pp-user">
                 <div className="pp-user-avatar">{userInitials}</div>
@@ -128,6 +137,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <button
                   className="pp-user-logout"
                   title="Log out"
+                  aria-label="Log out"
                   onClick={() => logout()}
                 >
                   <LogoutIcon />
@@ -144,6 +154,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Mobile hamburger */}
             <button
               className="pp-hamburger"
+              aria-label="Open menu"
               onClick={() => setMobileOpen(!mobileOpen)}
             >
               <HamburgerIcon />
@@ -154,13 +165,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             {/* Right actions */}
             <div className="pp-topbar-actions">
-              <button className="pp-topbar-btn" title="Notifications">
-                <BellIcon />
-                <span className="pp-notif-dot" />
-              </button>
-              <button className="pp-topbar-btn" title="Search">
-                <SearchIcon />
-              </button>
               <Link href="/bookings/new" className="pp-new-booking-btn" prefetch={false}>
                 <PlusIcon />
                 <span>New Booking</span>
@@ -175,6 +179,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </div>
     </>
+    </AuthGuard>
   );
 }
 
@@ -277,6 +282,16 @@ function CameraIcon() {
       <rect x="1.5" y="4.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
       <circle cx="8" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.4"/>
       <path d="M5.5 4.5l1-2h3l1 2" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function StoreIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M2 5.5l1.1-3h9.8l1.1 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M2 5.5h12v2.2A2.3 2.3 0 0111.7 10H4.3A2.3 2.3 0 012 7.7V5.5z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+      <path d="M3.5 10v3.5h9V10" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+      <path d="M6 13.5v-2.3h4v2.3" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
     </svg>
   );
 }

@@ -130,9 +130,9 @@ class ClientResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     @classmethod
-    def from_orm(cls, client: Client):
+    def from_orm(cls, client: Client, include_history: bool = True):
         tags = [TagResponse.model_validate(link.tag) for link in (client.tags or []) if link.tag]
-        bookings = [
+        bookings = [] if not include_history else [
             ClientBookingSummaryResponse(
                 id=booking.id,
                 reference=booking.reference,
@@ -144,7 +144,7 @@ class ClientResponse(BaseModel):
             )
             for booking in (client.bookings or [])
         ]
-        invoices = [
+        invoices = [] if not include_history else [
             ClientInvoiceSummaryResponse(
                 id=invoice.id,
                 reference=invoice.reference,
@@ -193,12 +193,17 @@ def list_clients(
     status_filter: Optional[str] = Query(None, alias="status"),
     tag: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    assigned_to: Optional[UUID] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     _=Depends(require_permission("clients:read")),
 ):
-    query = base_client_query(db)
+    query = db.query(Client).options(
+        selectinload(Client.tags).selectinload(ClientTag.tag),
+        selectinload(Client.addresses),
+        selectinload(Client.portal_account),
+    )
     if status_filter:
         query = query.filter(Client.status == status_filter)
     if search:
@@ -212,11 +217,13 @@ def list_clients(
                 Client.source.ilike(needle),
             )
         )
+    if assigned_to:
+        query = query.filter(Client.assigned_to == assigned_to)
     if tag:
         query = query.join(ClientTag).join(Tag).filter(Tag.name == tag)
 
     result = paginate(query.order_by(Client.created_at.desc()), page, page_size)
-    result["items"] = [ClientResponse.from_orm(client) for client in result["items"]]
+    result["items"] = [ClientResponse.from_orm(client, include_history=False) for client in result["items"]]
     return result
 
 
@@ -258,6 +265,8 @@ def update_client(
         raise HTTPException(status_code=404, detail="Client not found")
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(client, field, value)
+    if data.email and client.portal_account:
+        client.portal_account.email = data.email.lower()
     db.commit()
     client = base_client_query(db).filter(Client.id == client_id).first()
     return ClientResponse.from_orm(client)
