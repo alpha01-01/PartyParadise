@@ -88,7 +88,7 @@ Testing used a temporary Postgres 18 instance on its own port, seeded through th
 | BUG-44 | Admins cannot edit other people's booking notes. The check reads `current_user.is_admin`, which does not exist on `User`, so it is always false. | `api/app/routers/bookings.py`, `update_note` | Code | **Fixed 2026-11-01** |
 | BUG-45 | Popups have no popup styling. `web/styles/*.css` is imported by nothing, and `.pp-modal-overlay` exists only there, so forms such as Add Staff render at the bottom of the page. | `web/styles/invoices.css:128`; `web/app/(dashboard)/layout.tsx:3` | Reproduced on Staff | **Fixed 2026-11-01**: 40-plus other classes in `web/styles` are still not loaded |
 | BUG-46 | `GET /reports/staff/attendance` always returned 500 because of a broken SQL cast. | `api/app/routers/reports.py` | Reproduced by the route smoke test | **Fixed 2026-11-01** |
-| BUG-47 | PDFs cannot be generated on this Windows machine because WeasyPrint cannot load the system library `pango-1.0-0`. Download PDF fails, and invoice emails go out without being generated. | `api/app/services/pdf.py:557` | Reproduced in test logs | Open |
+| BUG-47 | PDFs cannot be generated on this Windows machine because WeasyPrint cannot load the system library `pango-1.0-0`. Download PDF fails, and invoice emails go out without being generated. | `api/app/services/pdf.py:557` | Reproduced in test logs | **Worked around 2026-11-01**: PDFs work on Linux. Windows still needs Pango |
 | BUG-48 | Two logins in the same second received identical refresh tokens, so logging out one ended both. | `api/app/utils/security.py` | Reproduced by a timing failure in the test suite | **Fixed 2026-11-01** |
 | BUG-42 | Fresh installs cannot be used. README promises a seeded `admin@partyparadise.com`, but no migration creates a user or permissions. Without `seed_permissions.py`, non-admin roles get 403 on everything. | `README.md:144`; `api/migrations/versions/001_auth_users.py:97` | Reproduced: 0 users after migrating | **Fixed 2026-11-01** |
 
@@ -332,7 +332,7 @@ These were left on purpose because each is a feature or redesign, not a fix:
 - **Client and booking search (PERF-07):** needs a `pg_trgm` index.
 - **Accessibility:** native `alert`/`confirm` remain.
 - **Structure:** service layer, splitting `hooks/index.ts`, and generated TypeScript types.
-- **Not run:** Docker images, CI, live Paystack, real email, PDFs on WeasyPrint 70.
+- **Not run:** Docker images, CI, live Paystack, real email. Docker Desktop would not start on the dev PC, so the app was tested without it on Ubuntu 24.04: 653 tests, production build, PDFs on WeasyPrint 70, and 11 staff pages in production mode.
 - **Your actions:** rotate the database password (SEC-11), decide on rewriting git history (decision 6), and untrack `web/tsconfig.tsbuildinfo` when committing.
 
 ### Outstanding from Phase 5

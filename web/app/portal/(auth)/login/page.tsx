@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { normaliseError, portalApi, setPortalAccessToken, setPortalRefreshToken } from "@/lib/api";
 
@@ -46,11 +45,6 @@ export default function PortalLoginPage() {
             Access your bookings, invoices & contracts
           </p>
         </header>
-
-        <div className="login-tabs">
-          <Link href="/login" className="login-tab">Staff</Link>
-          <span className="login-tab login-tab--active">Client Portal</span>
-        </div>
 
         {error && (
           <div className="login-error" role="alert">
@@ -114,11 +108,6 @@ export default function PortalLoginPage() {
         </form>
 
         <p className="login-switch">
-          Staff member?{" "}
-          <Link href="/login" className="login-forgot">Staff login →</Link>
-        </p>
-
-        <p className="login-switch" style={{ marginTop: 8 }}>
           First time here?{" "}
           <span style={{ color: "var(--pp-text-2)" }}>
             Contact us to get your invitation link.

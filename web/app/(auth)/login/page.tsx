@@ -65,11 +65,6 @@ export default function LoginPage() {
             <p className="login-form-sub">Sign in to your staff account</p>
           </header>
 
-          <div className="login-tabs">
-            <span className="login-tab login-tab--active">Staff</span>
-            <Link href="/portal/login" className="login-tab">Client Portal</Link>
-          </div>
-
           {error && (
             <div className="login-error" role="alert" aria-live="polite">
               <span className="login-error-dot" />
@@ -135,10 +130,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="login-switch">
-            Accessing as a client?{" "}
-            <Link href="/portal/login">Client portal →</Link>
-          </p>
         </div>
       </main>
     </div>
